@@ -24,13 +24,14 @@ This is not a tool for publishing translated copyrighted books.
 openlongpdf prepare book.pdf --pages-per-chunk 10
 openlongpdf queue .\book_openlongpdf --write
 openlongpdf pack .\book_openlongpdf --chunks-per-pack 4
-# Paste/send output\packs\pack_001.md in ChatGPT, then save the answer.
+openlongpdf copy-pack .\book_openlongpdf pack_001 --open chatgpt
+# Paste/send the copied pack text in ChatGPT, then save the answer.
 openlongpdf import .\book_openlongpdf .\book_openlongpdf\output\pack_responses\pack_001_response.md
 openlongpdf status .\book_openlongpdf
 openlongpdf assemble .\book_openlongpdf
 ```
 
-For long documents, `queue --write` creates `output/translation_queue.md`, and `pack` creates larger prompt files under `output/packs/` so users do not need to process one chunk at a time.
+For long documents, `queue --write` creates `output/translation_queue.md`, `pack` creates larger prompt files under `output/packs/`, and `copy-pack` copies a pack through the Unicode-safe clipboard route on WSL/Windows.
 
 ## Why
 

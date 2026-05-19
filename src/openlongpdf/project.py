@@ -411,6 +411,7 @@ def _format_translation_pack_index(
             [
                 f"- [ ] {path.stem}: {chunk_names}",
                 f"  - Prompt pack: `{_project_relative(project, path)}`",
+                f"  - Copy pack: `openlongpdf copy-pack {_shell_quote(project.project_dir)} {path.stem} --open chatgpt`",
                 f"  - Save translated response to: `{_project_relative(project, response_path)}`",
                 f"  - Import: `openlongpdf import {_shell_quote(project.project_dir)} {_shell_quote(response_path)}`",
             ]

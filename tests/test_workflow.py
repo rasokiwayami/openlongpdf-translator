@@ -227,6 +227,7 @@ def test_translation_packs_group_remaining_chunks_and_write_index(tmp_path):
     index_text = result.index_path.read_text(encoding="utf-8")
     assert "2 packs generated" in index_text
     assert "chunk_002, chunk_003" in index_text
+    assert "openlongpdf copy-pack" in index_text
     assert "output/pack_responses/pack_001_response.md" in index_text
     first_pack = result.pack_paths[0].read_text(encoding="utf-8")
     assert "Translate the following PDF excerpts into Japanese" in first_pack

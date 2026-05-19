@@ -98,15 +98,21 @@ CLI commands to implement:
    - Group remaining chunks into larger prompt files under `output/packs/`.
    - Default to a small number of chunks per pack and support `--chunks-per-pack`.
    - Write `output/translation_packs.md` with each pack file and suggested response save path.
+   - Include a `copy-pack` command for each pack in `output/translation_packs.md`.
    - Require marked translated chunk blocks so multiple chunks can be imported safely.
 
-7. `openlongpdf import <project_dir> <response_file>`
+7. `openlongpdf copy-pack <project_dir> <pack>`
+   - Copy a pack file such as `pack_001` or `pack_001.md` to the clipboard.
+   - With `--open chatgpt|claude|gemini`, open the selected service URL after copying.
+   - On WSL/Windows, prefer PowerShell `Set-Clipboard` over `clip.exe` so Cyrillic, Japanese, and other non-ASCII text is preserved.
+
+8. `openlongpdf import <project_dir> <response_file>`
    - Read a marked multi-chunk response saved by the user.
    - Save each marked block to the matching `translated_chunks/chunk_NNN_translated.md`.
    - Refuse to overwrite existing translated chunks unless `--overwrite` is passed.
    - Avoid partial imports by checking targets before writing.
 
-8. `openlongpdf assemble <project_dir>`
+9. `openlongpdf assemble <project_dir>`
    - Read translated chunks in order.
    - Generate:
      - `output/reading_note.md`
@@ -119,16 +125,16 @@ CLI commands to implement:
      - escaped user content
      - no frontend framework
 
-9. Optional:
+10. Optional:
    `openlongpdf estimate <pdf>`
    - Show page count, extracted characters, estimated chunks, rough token estimate, and rough API cost placeholders.
 
-10. Future, not MVP unless everything above is complete:
+11. Future, not MVP unless everything above is complete:
    `openlongpdf auth <provider>`
    - Configure official API credentials for OpenAI, DeepL, or other providers.
    - Do not authenticate against ChatGPT Web accounts.
 
-11. Future, not MVP unless everything above is complete:
+12. Future, not MVP unless everything above is complete:
    `openlongpdf translate <project_dir> --provider <provider>`
    - Automatically translate remaining chunks through official APIs.
    - Save each result into `translated_chunks/`.

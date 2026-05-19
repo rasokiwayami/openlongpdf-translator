@@ -69,6 +69,12 @@ def build_parser() -> argparse.ArgumentParser:
     pack.add_argument("--all", action="store_true", help="include chunks that already have translations")
     pack.set_defaults(func=cmd_pack)
 
+    copy_pack = subparsers.add_parser("copy-pack", help="copy a prompt pack to the clipboard")
+    copy_pack.add_argument("project_dir")
+    copy_pack.add_argument("pack", help="pack name such as pack_001 or pack_001.md")
+    copy_pack.add_argument("--open", choices=["chatgpt", "claude", "gemini"], help="open a translator website")
+    copy_pack.set_defaults(func=cmd_copy_pack)
+
     paste = subparsers.add_parser("paste", help="save clipboard text as the next translated chunk")
     paste.add_argument("project_dir")
     paste.add_argument("--overwrite", action="store_true", help="allow replacing an existing translated chunk")
@@ -172,6 +178,30 @@ def cmd_pack(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_copy_pack(args: argparse.Namespace) -> int:
+    project = Project.load(args.project_dir)
+    pack_path = _resolve_pack_path(project, args.pack)
+    pack_text = pack_path.read_text(encoding="utf-8")
+    try:
+        method = copy_to_clipboard(pack_text)
+    except ClipboardError as exc:
+        print(f"Clipboard copy unavailable: {exc}", file=sys.stderr)
+        return 2
+
+    relative_pack = pack_path.relative_to(project.project_dir)
+    response_path = project.project_dir / "output" / "pack_responses" / f"{pack_path.stem}_response.md"
+    print(f"Copied {relative_pack} to clipboard using {method}.")
+    print(f"Save translated response to: {response_path.relative_to(project.project_dir)}")
+
+    if args.open:
+        try:
+            url = open_translation_service(args.open)
+            print(f"Opened {args.open}: {url}")
+        except (BrowserOpenError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+    return 0
+
+
 def cmd_paste(args: argparse.Namespace) -> int:
     try:
         text = read_clipboard()
@@ -224,6 +254,17 @@ def cmd_assemble(args: argparse.Namespace) -> int:
 
 def _shell_quote(value: str | Path) -> str:
     return shlex.quote(str(value))
+
+
+def _resolve_pack_path(project: Project, pack: str) -> Path:
+    raw = Path(pack).expanduser()
+    if raw.exists():
+        return raw
+    filename = raw.name if raw.name.endswith(".md") else f"{raw.name}.md"
+    path = project.project_dir / "output" / "packs" / filename
+    if not path.exists():
+        raise FileNotFoundError(f"Pack file not found: {path}")
+    return path
 
 
 if __name__ == "__main__":

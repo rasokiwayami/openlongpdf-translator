@@ -111,6 +111,27 @@ def test_pack_writes_multi_chunk_prompt_files(tmp_path, capsys):
     assert "--- BEGIN SOURCE CHUNK chunk_001 ---" in pack_path.read_text(encoding="utf-8")
 
 
+def test_copy_pack_copies_pack_text_and_opens_selected_service(tmp_path, monkeypatch, capsys):
+    project_dir = make_project(tmp_path)
+    main(["pack", str(project_dir), "--chunks-per-pack", "2"])
+    capsys.readouterr()
+    copied = {}
+    opened = {}
+
+    monkeypatch.setattr("openlongpdf.cli.copy_to_clipboard", lambda text: copied.setdefault("text", text))
+    monkeypatch.setattr("openlongpdf.cli.open_translation_service", lambda service: opened.setdefault("service", service))
+
+    exit_code = main(["copy-pack", str(project_dir), "pack_001", "--open", "chatgpt"])
+
+    output = capsys.readouterr().out.replace("\\", "/")
+    assert exit_code == 0
+    assert "Copied output/packs/pack_001.md" in output
+    assert "Save translated response to: output/pack_responses/pack_001_response.md" in output
+    assert "Translation Pack 001" in copied["text"]
+    assert "--- BEGIN SOURCE CHUNK chunk_001 ---" in copied["text"]
+    assert opened["service"] == "chatgpt"
+
+
 def test_import_reads_response_file_and_saves_chunks(tmp_path, capsys):
     project_dir = make_project(tmp_path)
     response_path = tmp_path / "response.md"

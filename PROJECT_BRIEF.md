@@ -78,6 +78,7 @@ Required commands:
 - `openlongpdf next <project_dir>`
 - `openlongpdf queue <project_dir>`
 - `openlongpdf pack <project_dir>`
+- `openlongpdf copy-pack <project_dir> <pack>`
 - `openlongpdf paste <project_dir>`
 - `openlongpdf import <project_dir> <response_file>`
 - `openlongpdf assemble <project_dir>`
@@ -90,12 +91,13 @@ Required workflow:
 4. Tool generates prompt files.
 5. Tool shows a full translation queue with every prompt file and save target.
 6. Tool can group remaining chunks into larger prompt packs.
-7. User copies prompt packs into ChatGPT, Claude, Gemini, DeepL, or another AI.
-8. User saves the marked translated answer.
-9. Tool imports every translated chunk from that marked answer.
-10. Tool still supports one-chunk-at-a-time `next` and `paste` fallback.
-11. Tool tracks progress.
-12. Tool assembles Markdown and HTML reading notes.
+7. Tool copies prompt packs through a Unicode-safe clipboard route, especially on WSL/Windows.
+8. User pastes prompt packs into ChatGPT, Claude, Gemini, DeepL, or another AI.
+9. User saves the marked translated answer.
+10. Tool imports every translated chunk from that marked answer.
+11. Tool still supports one-chunk-at-a-time `next` and `paste` fallback.
+12. Tool tracks progress.
+13. Tool assembles Markdown and HTML reading notes.
 
 ## MVP Non-Goals
 
@@ -185,6 +187,7 @@ A user can run:
 ```powershell
 openlongpdf prepare book.pdf --pages-per-chunk 10
 openlongpdf pack .\book_openlongpdf --chunks-per-pack 4
+openlongpdf copy-pack .\book_openlongpdf pack_001 --open chatgpt
 openlongpdf import .\book_openlongpdf .\book_openlongpdf\output\pack_responses\pack_001_response.md
 openlongpdf status .\book_openlongpdf
 openlongpdf assemble .\book_openlongpdf

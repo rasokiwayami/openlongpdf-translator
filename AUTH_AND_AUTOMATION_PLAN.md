@@ -102,6 +102,7 @@ Provider auth and `translate` are a second phase after:
 - `next`
 - `queue`
 - `pack`
+- `copy-pack`
 - `paste`
 - `import`
 - `assemble`

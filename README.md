@@ -24,7 +24,8 @@ uv run openlongpdf --help
 openlongpdf prepare book.pdf --pages-per-chunk 10
 openlongpdf queue book_openlongpdf --write
 openlongpdf pack book_openlongpdf --chunks-per-pack 4
-# Paste/send output/packs/pack_001.md in ChatGPT, then save the answer.
+openlongpdf copy-pack book_openlongpdf pack_001 --open chatgpt
+# Paste/send the copied pack text in ChatGPT, then save the answer.
 openlongpdf import book_openlongpdf book_openlongpdf/output/pack_responses/pack_001_response.md
 openlongpdf status book_openlongpdf
 openlongpdf assemble book_openlongpdf
@@ -50,11 +51,12 @@ Pack-based paste assistance is the first-class long-document workflow:
 2. `openlongpdf queue book_openlongpdf --write`
 3. `openlongpdf pack book_openlongpdf --chunks-per-pack 4`
 4. Review `output/translation_packs.md` to see every pack file and response save path.
-5. Paste/send each `output/packs/pack_NNN.md` file in ChatGPT, Claude, Gemini, DeepL, or another translator.
-6. Save each translated answer to the suggested `output/pack_responses/pack_NNN_response.md` path.
-7. `openlongpdf import book_openlongpdf book_openlongpdf/output/pack_responses/pack_NNN_response.md`
-8. Repeat by pack until `openlongpdf status book_openlongpdf` shows no remaining chunks.
-9. `openlongpdf assemble book_openlongpdf`
+5. `openlongpdf copy-pack book_openlongpdf pack_NNN --open chatgpt`
+6. Paste/send the copied pack text in ChatGPT, Claude, Gemini, DeepL, or another translator.
+7. Save each translated answer to the suggested `output/pack_responses/pack_NNN_response.md` path.
+8. `openlongpdf import book_openlongpdf book_openlongpdf/output/pack_responses/pack_NNN_response.md`
+9. Repeat by pack until `openlongpdf status book_openlongpdf` shows no remaining chunks.
+10. `openlongpdf assemble book_openlongpdf`
 
 For long documents, inspect the whole queue first:
 
@@ -64,7 +66,7 @@ openlongpdf queue book_openlongpdf --write
 openlongpdf queue book_openlongpdf --all
 ```
 
-`next --copy --open chatgpt` copies the next prompt and opens ChatGPT where the local OS makes that feasible. On WSL/Linux, clipboard support tries common tools such as `clip.exe`, PowerShell `Set-Clipboard`, `wl-copy`, `xclip`, and related fallbacks. Browser opening tries `cmd.exe /c start`, `wslview`, `xdg-open`, and other safe local openers. If those tools are unavailable, OpenLongPDF prints paths and errors without storing credentials or scraping websites.
+`copy-pack ... --open chatgpt` copies a full prompt pack and opens ChatGPT. `next --copy --open chatgpt` does the same for one-chunk fallback. On WSL/Linux, clipboard support prefers PowerShell `Set-Clipboard` before `clip.exe` so non-ASCII text such as Cyrillic, Japanese, and accented Latin characters survives the Windows clipboard boundary. Browser opening tries `cmd.exe /c start`, `wslview`, `xdg-open`, and other safe local openers. If those tools are unavailable, OpenLongPDF prints paths and errors without storing credentials or scraping websites.
 
 `queue` lists every remaining prompt file and the matching translated chunk target. `--write` creates `output/translation_queue.md` as a checklist so a 30+ chunk workload is visible before you start copying prompts.
 
@@ -90,6 +92,14 @@ This writes the pack index and prompt files, and the index suggests response sav
 - `output/packs/pack_001.md`
 - `output/packs/pack_002.md`
 - `output/pack_responses/pack_001_response.md` as the suggested save path for the translated answer
+
+Copy a pack to the clipboard with:
+
+```bash
+openlongpdf copy-pack book_openlongpdf pack_001 --open chatgpt
+```
+
+Do not use `cat output/packs/pack_001.md | clip.exe` on WSL for Cyrillic or other non-ASCII documents; it can produce mojibake. Use `copy-pack`, which uses the Unicode-safe clipboard route when PowerShell is available.
 
 Each pack asks the translator to return marked blocks:
 
