@@ -10,8 +10,8 @@ It is not a translation model. It is a local-first workflow tool that:
 - preserves page numbers,
 - splits the document into manageable translation chunks,
 - generates prompts for ChatGPT, Claude, Gemini, DeepL, or API-based translation,
+- gives PC users a local browser GUI for copying packs and importing responses,
 - translates chunks automatically for users with paid API access,
-- helps the user paste translated chunks back when they do not want API automation,
 - assembles the result into page-aware Markdown and HTML reading notes.
 
 ## Why This Should Exist
@@ -60,7 +60,7 @@ Primary:
 - humanities students reading non-English sources,
 - graduate students and independent researchers,
 - technical readers who want long PDFs converted into Markdown/HTML notes,
-- people who already have paid API access to a capable LLM and do not want another document translation subscription.
+- people who already pay for ChatGPT/Claude/Gemini and do not want another document translation subscription.
 
 Secondary:
 
@@ -82,6 +82,7 @@ Required commands:
 - `openlongpdf paste <project_dir>`
 - `openlongpdf import <project_dir> <response_file>`
 - `openlongpdf translate <project_dir> --model <model>`
+- `openlongpdf gui <project_dir>`
 - `openlongpdf assemble <project_dir>`
 
 Required workflow:
@@ -92,23 +93,20 @@ Required workflow:
 4. Tool generates prompt files.
 5. Tool shows a full translation queue with every prompt file and save target.
 6. Tool can group remaining chunks into larger prompt packs.
-7. For paid API users, tool sends missing chunks to an OpenAI-compatible API and saves each translated result.
-8. For manual users, tool copies prompt packs through a Unicode-safe clipboard route, especially on WSL/Windows.
-9. User pastes prompt packs into ChatGPT, Claude, Gemini, DeepL, or another AI.
-10. User saves the marked translated answer.
-11. Tool imports every translated chunk from that marked answer.
-12. Tool still supports one-chunk-at-a-time `next` and `paste` fallback.
-13. Tool tracks progress.
-14. Tool assembles Markdown and HTML reading notes.
+7. For normal PC users, tool starts a local browser GUI.
+8. GUI generates packs, copies prompt packs, opens ChatGPT, accepts translated responses, imports chunks, and assembles notes.
+9. For paid API users, tool can send missing chunks to an OpenAI-compatible API and save each translated result.
+10. Tool still supports one-chunk-at-a-time `next` and `paste` fallback.
+11. Tool tracks progress.
+12. Tool assembles Markdown and HTML reading notes.
 
 ## MVP Non-Goals
 
 Do not implement these in the first version:
 
 - OCR,
-- GUI,
 - native app,
-- web app,
+- hosted web app,
 - user accounts,
 - billing,
 - cloud storage,
@@ -186,8 +184,7 @@ A user can run:
 
 ```powershell
 openlongpdf prepare book.pdf --pages-per-chunk 10
-openlongpdf translate .\book_openlongpdf --model your-paid-model
-openlongpdf translate .\book_openlongpdf --model your-paid-model --yes
+openlongpdf gui .\book_openlongpdf
 openlongpdf status .\book_openlongpdf
 openlongpdf assemble .\book_openlongpdf
 ```

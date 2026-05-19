@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .api_translate import ApiTranslationConfig, OpenAICompatibleClient, plan_translation, translate_project
 from .clipboard import BrowserOpenError, ClipboardError, copy_to_clipboard, open_translation_service, read_clipboard
+from .gui import run_gui
 from .pdf_extract import extract_pdf_pages
 from .project import (
     Project,
@@ -102,6 +103,13 @@ def build_parser() -> argparse.ArgumentParser:
     translate.add_argument("--temperature", type=float, default=0.0, help="sampling temperature")
     translate.add_argument("--max-output-tokens", type=int, help="optional max_tokens value for each request")
     translate.set_defaults(func=cmd_translate)
+
+    gui = subparsers.add_parser("gui", help="start a local browser GUI for a prepared project")
+    gui.add_argument("project_dir")
+    gui.add_argument("--host", default="127.0.0.1", help="host interface for the local GUI")
+    gui.add_argument("--port", type=int, default=8765, help="preferred local GUI port")
+    gui.add_argument("--no-open", action="store_true", help="do not open the browser automatically")
+    gui.set_defaults(func=cmd_gui)
 
     assemble = subparsers.add_parser("assemble", help="assemble translated chunks into Markdown and HTML")
     assemble.add_argument("project_dir")
@@ -310,6 +318,11 @@ def cmd_assemble(args: argparse.Namespace) -> int:
     outputs = assemble_project(args.project_dir)
     print(f"Wrote {outputs.markdown_path}")
     print(f"Wrote {outputs.html_path}")
+    return 0
+
+
+def cmd_gui(args: argparse.Namespace) -> int:
+    run_gui(args.project_dir, host=args.host, port=args.port, open_browser=not args.no_open)
     return 0
 
 

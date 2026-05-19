@@ -4,7 +4,7 @@ Turn long foreign-language PDFs into page-aware reading notes.
 
 No cloud lock-in. No extra translation subscription. Use the AI you already pay for.
 
-OpenLongPDF Translator is a local-first Python CLI workflow. It extracts text from text-layer PDFs, keeps page numbers, splits long documents into translation prompts, can translate those chunks through a paid OpenAI-compatible API, and assembles translated chunks into Markdown and HTML reading notes. It also keeps a manual paste workflow for ChatGPT, Claude, Gemini, DeepL, or another tool.
+OpenLongPDF Translator is a local-first workflow for reading long foreign-language PDFs with the AI tool you already use. It extracts text from text-layer PDFs, keeps page numbers, splits long documents into translation prompts, gives you a local browser GUI for ChatGPT/Claude/Gemini-style paste workflows, and assembles translated chunks into Markdown and HTML reading notes. A paid OpenAI-compatible API mode is available for users who want fully automatic chunk translation.
 
 ## Install
 
@@ -20,23 +20,25 @@ uv run openlongpdf --help
 
 ## MVP Workflow
 
-### Paid API Automation
+### Local GUI For ChatGPT
 
 ```bash
-export OPENAI_API_KEY=...
-
 openlongpdf prepare book.pdf --pages-per-chunk 10 --target-language Japanese
-openlongpdf translate book_openlongpdf --model your-paid-model
-# Review the planned chunk count and prompt size, then run:
-openlongpdf translate book_openlongpdf --model your-paid-model --yes
-openlongpdf assemble book_openlongpdf
+openlongpdf gui book_openlongpdf
 ```
 
-`translate` sends each missing chunk to an OpenAI-compatible `/chat/completions` API, saves every response immediately into `translated_chunks/`, and skips chunks that are already translated. It refuses to call the paid API until `--yes` is provided. By default it reads the API key from `OPENAI_API_KEY`; use `--api-key-env` and `--base-url` for another compatible provider.
+The GUI opens a local browser page where you can:
 
-ChatGPT Plus/Pro website subscriptions are not API credentials. Automatic translation requires a provider API key and may incur API charges.
+- generate multi-chunk packs,
+- copy a pack to the clipboard,
+- open ChatGPT,
+- paste the translated response back,
+- import translated chunks,
+- assemble the final reading notes.
 
-### Manual Paste Assist
+The GUI does not scrape ChatGPT, control your browser session, or store ChatGPT credentials.
+
+### CLI Paste Assist
 
 ```bash
 openlongpdf prepare book.pdf --pages-per-chunk 10
@@ -135,9 +137,27 @@ openlongpdf import book_openlongpdf book_openlongpdf/output/pack_responses/pack_
 
 `import` refuses to overwrite existing translated chunks unless `--overwrite` is provided. This keeps manual ChatGPT/DeepL-style workflows explicit while avoiding one command per chunk.
 
+## Paid API Automation
+
+For users with API access:
+
+```bash
+export OPENAI_API_KEY=...
+
+openlongpdf prepare book.pdf --pages-per-chunk 10 --target-language Japanese
+openlongpdf translate book_openlongpdf --model your-paid-model
+# Review the planned chunk count and prompt size, then run:
+openlongpdf translate book_openlongpdf --model your-paid-model --yes
+openlongpdf assemble book_openlongpdf
+```
+
+`translate` sends each missing chunk to an OpenAI-compatible `/chat/completions` API, saves every response immediately into `translated_chunks/`, and skips chunks that are already translated. It refuses to call the paid API until `--yes` is provided. By default it reads the API key from `OPENAI_API_KEY`; use `--api-key-env` and `--base-url` for another compatible provider.
+
+ChatGPT Plus/Pro website subscriptions are not API credentials. Automatic API translation requires a provider API key and may incur API charges.
+
 ## What This Is Not
 
-OpenLongPDF is not a translation model and is not a cloud translation service. It does not implement OCR, a GUI, a web app, a native app, user accounts, billing, cloud storage, PDF regeneration, or ChatGPT scraping. It does not store credentials, cookies, access tokens, or session data.
+OpenLongPDF is not a translation model and is not a cloud translation service. It does not implement OCR, a hosted web app, a native app, user accounts, billing, cloud storage, PDF regeneration, or ChatGPT scraping. It does not store credentials, cookies, access tokens, or session data.
 
 API-based auto-translation uses provider API keys from environment variables. It does not authenticate against ChatGPT Web accounts or reuse browser subscriptions.
 
@@ -152,4 +172,3 @@ Only process documents you have the right to read or use. Do not publish transla
 - Glossary support
 - Provider-specific cost estimates
 - Better HTML reader
-- Local LLM integration

@@ -96,7 +96,7 @@ Not allowed:
 
 The current MVP should remain useful without API keys.
 
-The paid API `translate` path now sits beside the manual workflow:
+The paid API `translate` path sits beside the GUI/manual workflow:
 
 - `prepare`
 - `status`
@@ -106,6 +106,7 @@ The paid API `translate` path now sits beside the manual workflow:
 - `copy-pack`
 - `paste`
 - `import`
+- `gui`
 - `assemble`
 
-Manual paste remains available for users without API keys.
+The local GUI is the main route for users who already pay for ChatGPT/Claude/Gemini but do not have API keys.

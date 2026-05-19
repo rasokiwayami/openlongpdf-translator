@@ -12,7 +12,7 @@ Core positioning:
 - Turn long foreign-language PDFs into page-aware reading notes.
 - No cloud lock-in.
 - No extra translation subscription required.
-- Use a paid OpenAI-compatible API key for automation, or ChatGPT/Claude/Gemini/DeepL manually.
+- Use the ChatGPT/Claude/Gemini/DeepL account the user already has through a local GUI, with paid API automation as an optional advanced route.
 - The tool is not a translation model.
 - The tool must not publish or distribute copyrighted translated content.
 - Demos/tests must use public-domain or synthetic sample text.
@@ -26,8 +26,9 @@ Implement a paste-assist workflow:
 3. It can open ChatGPT/Claude/Gemini in the browser.
 4. It can show the exact file where the translated answer should be saved.
 5. It can accept clipboard content and save it to the correct translated chunk file.
-6. It can automatically send missing chunks to a paid OpenAI-compatible API when the user provides an API key and `--yes`.
-7. It can update status after each saved translation.
+6. It can provide a local browser GUI for copying packs, opening ChatGPT, importing responses, and assembling notes.
+7. It can automatically send missing chunks to a paid OpenAI-compatible API when the user provides an API key and `--yes`.
+8. It can update status after each saved translation.
 
 Do not build unsupported scraping of ChatGPT output in MVP.
 Do not bypass rate limits, login walls, CAPTCHAs, usage limits, or UI protections.
@@ -134,11 +135,21 @@ CLI commands to implement:
    - Resume safely by skipping already translated chunks.
    - Refuse to overwrite existing translated chunks unless `--overwrite` is passed.
 
-11. Optional:
+11. `openlongpdf gui <project_dir>`
+   - Start a local browser GUI for a prepared project.
+   - Show project status and output paths.
+   - Generate packs from the browser.
+   - Copy pack text through the browser clipboard API.
+   - Open ChatGPT in a new tab.
+   - Let the user paste a translated response and import it.
+   - Assemble Markdown/HTML outputs.
+   - Do not scrape ChatGPT, store credentials, or automate browser submission.
+
+12. Optional:
    `openlongpdf estimate <pdf>`
    - Show page count, extracted characters, estimated chunks, rough token estimate, and rough API cost placeholders.
 
-12. Future:
+13. Future:
    `openlongpdf auth <provider>`
    - Configure official API credentials for OpenAI, DeepL, or other providers.
    - Do not authenticate against ChatGPT Web accounts.
@@ -152,8 +163,7 @@ Implementation constraints:
 - Must handle Japanese/Russian filenames on Windows.
 - Windows support is a hard requirement.
 - No OCR in MVP.
-- No GUI.
-- No web app.
+- No hosted web app.
 - No native app.
 - No user accounts.
 - No billing.
@@ -199,7 +209,6 @@ README requirements:
   - provider-specific cost estimates
   - provider auth helpers
   - better HTML reader
-  - local LLM integration
 
 Tests:
 - chunk ordering
@@ -211,6 +220,14 @@ Tests:
 - HTML escaping/rendering
 
 Success criteria:
+A PC user can process a long PDF through the GUI:
+- prepare the PDF
+- run `openlongpdf gui workdir`
+- generate packs
+- copy a pack into ChatGPT
+- paste the translated response back
+- assemble a readable Markdown/HTML note
+
 A user can process a long PDF with a paid API key:
 - prepare the PDF
 - run `openlongpdf translate ... --model ...`
