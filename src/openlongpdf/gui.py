@@ -111,42 +111,48 @@ def render_dashboard(project_dir: str | Path, *, message: str = "") -> str:
     .actions {{ display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }}
     .muted {{ color: #6b7280; }}
     .failed {{ color: #b91c1c; }}
+    .primary-action {{ display: inline-block; padding: 12px 16px; border: 1px solid #111827; border-radius: 6px; background: #111827; color: #fff; text-decoration: none; font-weight: 700; }}
+    summary {{ cursor: pointer; font-weight: 700; }}
   </style>
 </head>
 <body>
 <main>
   <h1>OpenLongPDF</h1>
   {message_html}
-  <section class="meta">
-    <p><strong>Project:</strong> <code>{html.escape(str(project.project_dir))}</code></p>
-    <p><strong>Source:</strong> <code>{html.escape(project.source_pdf)}</code></p>
-    <p><strong>Status:</strong> {html.escape(format_status(status))}</p>
-  </section>
 
   <section class="panel">
+    <h2>Ready</h2>
+    <p>Use ChatGPT to translate this PDF automatically.</p>
+    <p><a class="primary-action" href="/assist">Start ChatGPT Translation</a></p>
+  </section>
+
+  <details class="panel">
+    <summary>Advanced</summary>
+    <section class="meta">
+      <p><strong>Project:</strong> <code>{html.escape(str(project.project_dir))}</code></p>
+      <p><strong>Source:</strong> <code>{html.escape(project.source_pdf)}</code></p>
+      <p><strong>Status:</strong> {html.escape(format_status(status))}</p>
+    </section>
+
     <h2>Generate Packs</h2>
     <form method="post" action="/pack" class="actions">
       <label>Chunks per pack <input name="chunks_per_pack" type="number" min="1" value="{recommendation.chunks_per_pack}"></label>
       <button type="submit">Generate Packs</button>
     </form>
     <p class="muted"><strong>Recommended:</strong> {recommendation.chunks_per_pack} chunks per pack, about {recommendation.estimated_packs} packs. This uses conservative ChatGPT-app sized budgets; if output is truncated, regenerate with fewer chunks per pack.</p>
-  </section>
 
-  <section class="panel">
     <h2>Packs</h2>
     <p><a href="/assist">Browser Assist</a> can add a ChatGPT-side helper that sends queued packs, captures ChatGPT replies, imports them, and assembles the finished notes.</p>
     {_render_assist_progress(assist_summary)}
     {pack_items}
-  </section>
 
-  <section class="panel">
     <h2>Assemble</h2>
     <form method="post" action="/assemble">
       <button type="submit">Assemble Reading Notes</button>
     </form>
     <p>Markdown: <code>{html.escape(str(reading_note))}</code></p>
     <p>HTML: <code>{html.escape(str(index_html))}</code></p>
-  </section>
+  </details>
 </main>
 <script>
 async function copyPack(packName) {{
@@ -293,31 +299,29 @@ def render_browser_assist(
     textarea {{ width: 100%; min-height: 130px; box-sizing: border-box; }}
     code {{ word-break: break-all; }}
     .bookmarklet {{ display: inline-block; padding: 8px 12px; border: 1px solid #6b7280; border-radius: 6px; text-decoration: none; }}
+    .primary-action {{ display: inline-block; padding: 12px 16px; border: 1px solid #111827; border-radius: 6px; background: #111827; color: #fff; text-decoration: none; font-weight: 700; }}
     .muted {{ color: #6b7280; }}
+    summary {{ cursor: pointer; font-weight: 700; }}
   </style>
 </head>
 <body>
 <main>
-  <h1>Browser Assist</h1>
+  <h1>OpenLongPDF Assist</h1>
   <section class="panel">
+    <p>Drag this button to your bookmarks bar. Open ChatGPT, then click it once.</p>
+    <p><a class="primary-action" href="{html.escape(bookmarklet)}">OpenLongPDF Assist</a></p>
+  </section>
+  <details class="panel">
+    <summary>Advanced</summary>
     <p>Project: <code>{html.escape(str(project.project_dir))}</code></p>
     <p>Packs: {len(packs)} generated. Next unsent pack: <strong>{html.escape(next_text)}</strong>.</p>
     <p>Assist state: {summary.pending} pending, {summary.sent} sent, {summary.imported} imported, {summary.failed} failed.</p>
-  </section>
-  <section class="panel">
-    <h2>Install ChatGPT Helper</h2>
-    <p>Drag this bookmarklet to your bookmarks bar, open ChatGPT, then click it on the ChatGPT page:</p>
-    <p><a class="bookmarklet" href="{html.escape(bookmarklet)}">OpenLongPDF Assist</a></p>
-    <textarea readonly>{html.escape(bookmarklet)}</textarea>
-  </section>
-  <section class="panel">
-    <h2>What It Does</h2>
     <p>The helper adds two visible buttons on ChatGPT: <strong>Send next OpenLongPDF pack</strong> and <strong>Auto-send, capture, import, and assemble remaining packs</strong>.</p>
-    <p>Auto mode asks for one-time consent at the beginning of the session. After that consent, it sends each remaining pack, waits for ChatGPT to finish, extracts the new assistant response from visible DOM selectors such as <code>data-message-author-role="assistant"</code>, <code>article</code>, and <code>.markdown</code>, posts the response back to <code>/assist/import-response</code>, imports translated chunks, and assembles the final notes when all packs are imported.</p>
-    <p>It does not store ChatGPT credentials, cookies, access tokens, or session data. It reads only the visible assistant response in the ChatGPT tab after you start it.</p>
-    <p class="muted">Automatic capture depends on ChatGPT's visible page structure and may stop if the UI changes. If it stops, the GUI shows the failed pack and the saved failed response path for debugging.</p>
-  </section>
-  <p><a href="/">Back to project</a> | <a href="{CHATGPT_URL}" target="_blank" rel="noreferrer">Open ChatGPT</a></p>
+    <p>Auto mode asks for one-time consent at the beginning of the session. After that consent, it sends each remaining pack, waits for ChatGPT to finish, extracts the new assistant response, posts it back to <code>/assist/import-response</code>, imports translated chunks, and assembles the final notes when all packs are imported.</p>
+    <p>It does not store ChatGPT credentials, cookies, access tokens, or session data.</p>
+    <textarea readonly>{html.escape(bookmarklet)}</textarea>
+    <p><a href="/">Back to project</a></p>
+  </details>
 </main>
 </body>
 </html>

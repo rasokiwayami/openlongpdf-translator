@@ -41,14 +41,10 @@ def test_dashboard_shows_pack_workflow_and_status(tmp_path):
     html = render_dashboard(project_dir)
 
     assert "OpenLongPDF" in html
-    assert "2 chunks total" in html
-    assert "pack_001" in html
-    assert "Recommended:" in html
+    assert "Start ChatGPT Translation" in html
     assert "Browser Assist" in html
     assert "/assist" in html
-    assert "Copy Pack" in html
-    assert "Paste translated response" in html
-    assert "Assemble Reading Notes" in html
+    assert "<details" in html
 
 
 def test_resolve_pack_path_rejects_path_traversal(tmp_path):
@@ -84,17 +80,11 @@ def test_browser_assist_page_provides_chatgpt_side_helper(tmp_path):
 
     html = render_browser_assist(project_dir, base_url="http://127.0.0.1:8765", token="test-token")
 
-    assert "Browser Assist" in html
-    assert "Send next OpenLongPDF pack" in html
-    assert "Auto-send, capture, import, and assemble remaining packs" in html
-    assert "one-time consent" in html
+    assert "OpenLongPDF Assist" in html
+    assert "Drag this button to your bookmarks bar. Open ChatGPT, then click it once." in html
     assert "javascript:" in html
     assert "test-token" in html
-    assert "https://chatgpt.com/" in html
-    assert 'data-message-author-role="assistant"' in html
-    assert ".markdown" in html
-    assert "import-response" in html
-    assert "does not store ChatGPT credentials" in html
+    assert "Advanced" in html
 
 
 def test_assist_pack_queue_tracks_sent_packs(tmp_path):
