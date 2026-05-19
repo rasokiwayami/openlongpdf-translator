@@ -106,6 +106,8 @@ def test_chrome_extension_files_define_chatgpt_assist():
     assert "openLongPDFStartAssist" in core
     assert "Auto translate all" in core
     assert "/assist/import-response" in core
+    assert "waitForSendButton" in core
+    assert "送信" in core
 
 
 def test_assist_pack_queue_tracks_sent_packs(tmp_path):

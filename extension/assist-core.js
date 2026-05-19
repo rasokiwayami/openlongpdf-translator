@@ -81,16 +81,64 @@
         || document.querySelector("[contenteditable='true']");
     }
 
-    function sendButton() {
-      return document.querySelector("[data-testid='send-button']")
-        || document.querySelector("[data-testid='composer-send-button']")
-        || document.querySelector("button[aria-label='Send prompt']")
-        || Array.from(document.querySelectorAll("button")).find((button) => /send/i.test(button.getAttribute("aria-label") || ""));
-    }
-
     function stopButton() {
       return document.querySelector("[data-testid='stop-button']")
         || Array.from(document.querySelectorAll("button")).find((button) => /stop/i.test(button.getAttribute("aria-label") || ""));
+    }
+
+    function isVisibleElement(node) {
+      if (!node) return false;
+      const style = window.getComputedStyle(node);
+      return style.display !== "none" && style.visibility !== "hidden" && node.getClientRects().length > 0;
+    }
+
+    function isButtonUnavailable(button) {
+      return !button
+        || button.disabled
+        || button.getAttribute("aria-disabled") === "true"
+        || button.closest("[aria-disabled='true']");
+    }
+
+    function sendButton() {
+      const selectors = [
+        "[data-testid='send-button']",
+        "[data-testid='composer-send-button']",
+        "button[aria-label='Send prompt']",
+        "button[aria-label*='Send']",
+        "button[aria-label*='send']",
+        "button[aria-label*='Submit']",
+        "button[aria-label*='submit']",
+        "button[aria-label*='送信']",
+        "button[type='submit']"
+      ];
+      for (const selector of selectors) {
+        const button = Array.from(document.querySelectorAll(selector)).find(isVisibleElement);
+        if (button) return button;
+      }
+
+      const target = composer();
+      const form = target && target.closest("form");
+      if (!form) return null;
+      return Array.from(form.querySelectorAll("button")).find((button) => {
+        if (!isVisibleElement(button)) return false;
+        const label = button.getAttribute("aria-label") || button.textContent || "";
+        return /send|submit|送信/i.test(label);
+      }) || null;
+    }
+
+    async function waitForSendButton(timeoutMs = 60000) {
+      const started = Date.now();
+      let lastStatus = 0;
+      while (Date.now() - started < timeoutMs) {
+        const button = sendButton();
+        if (button && !isButtonUnavailable(button)) return button;
+        if (Date.now() - lastStatus > 2000) {
+          setStatus("Waiting for ChatGPT to enable the send button...");
+          lastStatus = Date.now();
+        }
+        await sleep(500);
+      }
+      return null;
     }
 
     function visibleText(node) {
@@ -197,11 +245,10 @@
       const beforeTexts = assistantTexts();
       await markSending(pack.pack);
       await fillComposer(pack.text);
-      await sleep(250);
-      const button = sendButton();
-      if (!button || button.disabled) {
+      const button = await waitForSendButton();
+      if (!button) {
         await navigator.clipboard.writeText(pack.text);
-        throw new Error("Send button was unavailable. Pack text was copied to clipboard instead.");
+        throw new Error("Send button did not become available. Pack text was copied to clipboard instead.");
       }
       button.click();
       await markSent(pack.pack);
