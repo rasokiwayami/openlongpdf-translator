@@ -426,7 +426,7 @@ def _format_translation_pack_index(
 _TRANSLATED_BLOCK_RE = re.compile(
     r"^--- BEGIN TRANSLATED CHUNK (?P<name>chunk_\d{3}) ---[ \t]*\r?\n"
     r"(?P<text>.*?)"
-    r"\r?\n--- END TRANSLATED CHUNK (?P=name) ---[ \t]*$",
+    r"\r?\n--- END TRANSLATED CHUNK(?: (?P=name))?(?: ---)?[ \t]*$",
     re.DOTALL | re.MULTILINE,
 )
 

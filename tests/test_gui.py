@@ -108,6 +108,7 @@ def test_chrome_extension_files_define_chatgpt_assist():
     assert "/assist/import-response" in core
     assert "waitForSendButton" in core
     assert "hasCompleteTranslatedBlocks" in core
+    assert "--- END TRANSLATED CHUNK ---" in core
     assert "送信" in core
 
 

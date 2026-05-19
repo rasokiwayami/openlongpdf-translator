@@ -197,7 +197,11 @@
     function hasCompleteTranslatedBlocks(text, chunkNames) {
       return chunkNames.every((name) => {
         return text.includes(`--- BEGIN TRANSLATED CHUNK ${name} ---`)
-          && text.includes(`--- END TRANSLATED CHUNK ${name} ---`);
+          && (
+            text.includes(`--- END TRANSLATED CHUNK ${name} ---`)
+            || text.includes("--- END TRANSLATED CHUNK ---")
+            || text.includes("--- END TRANSLATED CHUNK\n")
+          );
       });
     }
 

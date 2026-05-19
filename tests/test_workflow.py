@@ -324,6 +324,27 @@ translated two
     assert get_status(project_dir).remaining_chunks == 0
 
 
+def test_import_pack_response_accepts_unnamed_end_marker(tmp_path):
+    project_dir = tmp_path / "book_openlongpdf"
+    create_project_from_pages(
+        pdf_path=tmp_path / "book.pdf",
+        project_dir=project_dir,
+        pages=[PageText(number=1, text="one")],
+        pages_per_chunk=1,
+    )
+    response = """--- BEGIN TRANSLATED CHUNK chunk_001 ---
+translated one
+--- END TRANSLATED CHUNK
+"""
+
+    saved_paths = import_pack_response(project_dir, response)
+
+    assert [path.name for path in saved_paths] == ["chunk_001_translated.md"]
+    assert (project_dir / "translated_chunks" / "chunk_001_translated.md").read_text(encoding="utf-8") == (
+        "translated one\n"
+    )
+
+
 def test_import_pack_response_refuses_to_overwrite_existing_chunk(tmp_path):
     project_dir = tmp_path / "book_openlongpdf"
     create_project_from_pages(
