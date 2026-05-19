@@ -188,6 +188,19 @@
       return "";
     }
 
+    function expectedChunkNames(packText) {
+      const header = packText.match(/Chunks in this pack:\s*(chunk_\d{3}(?:,\s*chunk_\d{3})*)/);
+      if (header) return header[1].split(",").map((name) => name.trim()).filter(Boolean);
+      return Array.from(packText.matchAll(/--- BEGIN SOURCE CHUNK (chunk_\d{3}) ---/g)).map((match) => match[1]);
+    }
+
+    function hasCompleteTranslatedBlocks(text, chunkNames) {
+      return chunkNames.every((name) => {
+        return text.includes(`--- BEGIN TRANSLATED CHUNK ${name} ---`)
+          && text.includes(`--- END TRANSLATED CHUNK ${name} ---`);
+      });
+    }
+
     async function fillComposer(text) {
       const target = composer();
       if (!target) throw new Error("ChatGPT composer was not found.");
@@ -216,16 +229,31 @@
       throw new Error("Timed out waiting for ChatGPT to finish responding.");
     }
 
-    async function waitForAssistantResponse(beforeTexts) {
+    async function waitForAssistantResponse(beforeTexts, expectedChunks) {
       const started = Date.now();
       let latest = "";
+      let lastChanged = Date.now();
       while (Date.now() - started < 600000) {
         const captured = captureNewAssistantText(beforeTexts);
-        if (captured) latest = captured;
-        if (latest && !stopButton()) {
-          await sleep(1200);
+        if (captured && captured !== latest) {
+          latest = captured;
+          lastChanged = Date.now();
+        }
+        if (latest && expectedChunks.length && hasCompleteTranslatedBlocks(latest, expectedChunks)) {
+          await sleep(1500);
           return captureNewAssistantText(beforeTexts) || latest;
         }
+        if (latest && !expectedChunks.length && !stopButton() && Date.now() - lastChanged > 4000) {
+          return latest;
+        }
+        if (latest && !stopButton() && Date.now() - lastChanged > 15000) {
+          return latest;
+        }
+        setStatus(
+          expectedChunks.length
+            ? `Waiting for complete translated blocks: ${expectedChunks.join(", ")}...`
+            : "Waiting for ChatGPT response..."
+        );
         await sleep(1000);
       }
       throw new Error("Timed out waiting for a new ChatGPT assistant response.");
@@ -243,6 +271,7 @@
       if (confirmFirst && !confirm(`Send ${pack.pack} to ChatGPT, capture the reply, import it locally, and assemble if this finishes the project?`)) return false;
       setStatus(`Filling ${pack.pack}...`);
       const beforeTexts = assistantTexts();
+      const expectedChunks = expectedChunkNames(pack.text);
       await markSending(pack.pack);
       await fillComposer(pack.text);
       const button = await waitForSendButton();
@@ -253,7 +282,7 @@
       button.click();
       await markSent(pack.pack);
       setStatus(`Waiting for ChatGPT response to ${pack.pack}...`);
-      const responseText = await waitForAssistantResponse(beforeTexts);
+      const responseText = await waitForAssistantResponse(beforeTexts, expectedChunks);
       if (!responseText.trim()) throw new Error(`Could not capture ChatGPT response for ${pack.pack}.`);
       setStatus(`Importing ${pack.pack} response...`);
       const imported = await importResponse(pack.pack, responseText);

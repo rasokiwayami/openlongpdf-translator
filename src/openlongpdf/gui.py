@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from .project import Project, format_status, get_status, import_pack_response, write_translation_packs
+from .project import Project, format_status, get_status, import_pack_response, translated_chunk_names_in_response, write_translation_packs
 from .render import assemble_project
 from .sizing import recommend_chunks_per_pack
 
@@ -224,7 +224,14 @@ def import_assist_pack_response(project_dir: str | Path, pack_name: str, respons
     try:
         if not response_text.strip():
             raise ValueError("Translated response is empty")
-        saved_paths = import_pack_response(project.project_dir, response_text)
+        expected_chunk_names = _pack_chunk_names(pack_path)
+        response_chunk_names = translated_chunk_names_in_response(response_text)
+        if not response_chunk_names:
+            raise ValueError("No translated chunk blocks found in response")
+        missing_chunk_names = [name for name in expected_chunk_names if name not in response_chunk_names]
+        if missing_chunk_names:
+            raise ValueError(f"Missing complete translated chunk blocks: {', '.join(missing_chunk_names)}")
+        saved_paths = import_pack_response(project.project_dir, response_text, overwrite=True)
     except (FileExistsError, ValueError, RuntimeError) as exc:
         failed_path.write_text(raw_text, encoding="utf-8")
         _set_assist_pack_state(
@@ -748,6 +755,8 @@ def _normalize_assist_state(project: Project, raw_state: dict[str, object]) -> d
             status = "pending"
         if chunk_names and len(imported_chunk_names) == len(chunk_names):
             status = "imported"
+        elif status == "imported":
+            status = "pending"
         record_imported = raw_record.get("imported_chunk_names", [])
         if not isinstance(record_imported, list):
             record_imported = []

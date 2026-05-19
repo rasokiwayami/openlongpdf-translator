@@ -107,6 +107,7 @@ def test_chrome_extension_files_define_chatgpt_assist():
     assert "Auto translate all" in core
     assert "/assist/import-response" in core
     assert "waitForSendButton" in core
+    assert "hasCompleteTranslatedBlocks" in core
     assert "送信" in core
 
 
@@ -194,6 +195,24 @@ translated two
     assert result.html_path.exists()
     assert get_status(project_dir).remaining_chunks == 0
     assert get_assist_summary(project_dir).imported == 2
+
+
+def test_assist_import_response_requires_all_chunks_in_pack(tmp_path):
+    project_dir = make_project(tmp_path)
+    write_translation_packs(project_dir, chunks_per_pack=2)
+    partial = """--- BEGIN TRANSLATED CHUNK chunk_001 ---
+translated one
+--- END TRANSLATED CHUNK chunk_001 ---
+"""
+
+    result = import_assist_pack_response(project_dir, "pack_001", partial)
+
+    assert result.ok is False
+    assert "Missing complete translated chunk blocks: chunk_002" == result.error
+    assert get_status(project_dir).remaining_chunks == 2
+    summary = get_assist_summary(project_dir)
+    assert summary.failed == 1
+    assert summary.imported == 0
 
 
 def test_assist_next_json_returns_next_pack(tmp_path):

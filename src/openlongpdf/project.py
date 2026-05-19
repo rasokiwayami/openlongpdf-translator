@@ -288,6 +288,10 @@ def import_pack_response_file(
     return import_pack_response(project_dir, path.read_text(encoding="utf-8"), overwrite=overwrite)
 
 
+def translated_chunk_names_in_response(response_text: str) -> list[str]:
+    return [chunk_name for chunk_name, _text in _parse_pack_response(response_text)]
+
+
 def next_missing_chunk(project_or_dir: Project | str | Path) -> ProjectChunk | None:
     project = project_or_dir if isinstance(project_or_dir, Project) else Project.load(project_or_dir)
     for chunk in project.chunks:
