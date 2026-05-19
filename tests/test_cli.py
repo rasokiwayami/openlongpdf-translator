@@ -229,3 +229,50 @@ def test_translate_with_yes_saves_api_results(tmp_path, monkeypatch, capsys):
     assert "Saved 2 translated chunks" in output
     assert "translated_chunks/chunk_001_translated.md" in output
     assert get_status(project_dir).remaining_chunks == 0
+
+
+def test_run_prepares_pdf_generates_auto_packs_and_starts_gui(tmp_path, monkeypatch, capsys):
+    pdf_path = tmp_path / "book.pdf"
+    project_dir = tmp_path / "book_openlongpdf"
+    pdf_path.write_bytes(b"%PDF-test")
+    started = {}
+
+    monkeypatch.setattr(
+        "openlongpdf.cli.extract_pdf_pages",
+        lambda _pdf: [PageText(number=index, text="x" * 19_000) for index in range(1, 6)],
+    )
+
+    def fake_run_gui(project, *, host, port, open_browser):
+        started["project"] = Path(project)
+        started["host"] = host
+        started["port"] = port
+        started["open_browser"] = open_browser
+
+    monkeypatch.setattr("openlongpdf.cli.run_gui", fake_run_gui)
+
+    exit_code = main(
+        [
+            "run",
+            str(pdf_path),
+            "--project-dir",
+            str(project_dir),
+            "--pages-per-chunk",
+            "1",
+            "--target-language",
+            "Japanese",
+            "--no-open",
+        ]
+    )
+
+    output = capsys.readouterr().out.replace("\\", "/")
+    assert exit_code == 0
+    assert "Created project:" in output
+    assert "Auto-selected 2 chunks per pack" in output
+    assert "Generated 3 packs" in output
+    assert (project_dir / "output" / "packs" / "pack_003.md").exists()
+    assert started == {
+        "project": project_dir,
+        "host": "127.0.0.1",
+        "port": 8765,
+        "open_browser": False,
+    }

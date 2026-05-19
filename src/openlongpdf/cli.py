@@ -55,6 +55,18 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--target-language", default="English", help="translation target language for prompts")
     prepare.set_defaults(func=cmd_prepare)
 
+    run = subparsers.add_parser("run", help="prepare a PDF, generate safe packs, and start the local GUI")
+    run.add_argument("pdf_or_project", help="PDF to prepare, or an existing OpenLongPDF project directory")
+    run.add_argument("--pages-per-chunk", type=int, default=10, help="number of PDF pages per prompt chunk")
+    run.add_argument("--project-dir", help="output project directory; defaults to <pdf_stem>_openlongpdf")
+    run.add_argument("--target-language", default="English", help="translation target language for prompts")
+    run.add_argument("--max-prompt-chars", type=int, default=DEFAULT_MAX_PROMPT_CHARS, help="safe prompt char budget for generated packs")
+    run.add_argument("--max-source-chars", type=int, default=DEFAULT_MAX_SOURCE_CHARS, help="safe source char budget for generated packs")
+    run.add_argument("--host", default="127.0.0.1", help="host interface for the local GUI")
+    run.add_argument("--port", type=int, default=8765, help="preferred local GUI port")
+    run.add_argument("--no-open", action="store_true", help="do not open the browser automatically")
+    run.set_defaults(func=cmd_run)
+
     status = subparsers.add_parser("status", help="show translation progress")
     status.add_argument("project_dir")
     status.set_defaults(func=cmd_status)
@@ -149,6 +161,40 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     print(f"Created project: {project.project_dir}")
     print(f"Extracted {project.total_pages} pages into {status.total_chunks} chunks.")
     print(f"Next: openlongpdf next {_shell_quote(project.project_dir)} --copy --open chatgpt")
+    return 0
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    source = Path(args.pdf_or_project).expanduser()
+    if source.is_dir() and (source / "status.json").exists():
+        project = Project.load(source)
+        print(f"Using existing project: {project.project_dir}")
+    else:
+        pdf_path = source
+        project_dir = Path(args.project_dir).expanduser() if args.project_dir else None
+        pages = extract_pdf_pages(pdf_path)
+        project = create_project_from_pages(
+            pdf_path=pdf_path,
+            project_dir=project_dir,
+            pages=pages,
+            pages_per_chunk=args.pages_per_chunk,
+            target_language=args.target_language,
+        )
+        status = get_status(project.project_dir)
+        print(f"Created project: {project.project_dir}")
+        print(f"Extracted {project.total_pages} pages into {status.total_chunks} chunks.")
+
+    recommendation = recommend_chunks_per_pack(
+        project.project_dir,
+        max_prompt_chars=args.max_prompt_chars,
+        max_source_chars=args.max_source_chars,
+    )
+    print(f"Auto-selected {recommendation.chunks_per_pack} chunks per pack.")
+    result = write_translation_packs(project.project_dir, chunks_per_pack=recommendation.chunks_per_pack)
+    suffix = "" if len(result.pack_paths) == 1 else "s"
+    print(f"Generated {len(result.pack_paths)} pack{suffix}.")
+    print(f"Browser Assist: openlongpdf gui {_shell_quote(project.project_dir)}")
+    run_gui(project.project_dir, host=args.host, port=args.port, open_browser=not args.no_open)
     return 0
 
 

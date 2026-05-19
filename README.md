@@ -4,7 +4,7 @@ Turn long foreign-language PDFs into page-aware reading notes.
 
 No cloud lock-in. No extra translation subscription. Use the AI you already pay for.
 
-OpenLongPDF Translator is a local-first workflow for reading long foreign-language PDFs with the AI tool you already use. It extracts text from text-layer PDFs, keeps page numbers, splits long documents into translation prompts, gives you a local browser GUI for ChatGPT/Claude/Gemini-style workflows, and assembles translated chunks into Markdown and HTML reading notes. A paid OpenAI-compatible API mode is available for users who want fully automatic chunk translation.
+OpenLongPDF Translator is a local-first workflow for reading long foreign-language PDFs with the AI tool you already use. It extracts text from text-layer PDFs, keeps page numbers, splits long documents into translation packs, gives you a local browser GUI for ChatGPT Web/App workflows, captures ChatGPT replies through a visible user-started helper, imports translated chunks, and assembles Markdown and HTML reading notes. A paid OpenAI-compatible API mode is available, but the primary route does not require API keys.
 
 ## Install
 
@@ -18,7 +18,28 @@ For development with `uv`:
 uv run openlongpdf --help
 ```
 
-## MVP Workflow
+## Fastest ChatGPT Route
+
+```bash
+openlongpdf run book.pdf --target-language Japanese
+```
+
+`run` prepares the PDF, calculates a conservative safe pack size, generates prompt packs, and starts the local GUI.
+
+In the GUI:
+
+1. Open `Browser Assist`.
+2. Drag the `OpenLongPDF Assist` bookmarklet to your bookmarks bar.
+3. Open ChatGPT in the browser session where you are already logged in.
+4. Click the bookmarklet on the ChatGPT page.
+5. Choose `Auto-send, capture, import, and assemble remaining packs`.
+6. Confirm once at the start of the session.
+
+After that one-time consent, the helper sends each remaining pack, waits for ChatGPT to finish, captures the new assistant response from the visible page, posts it to the local GUI, imports the marked translated chunks, and runs `assemble` when all packs are imported.
+
+This route uses your existing ChatGPT Plus/Pro browser session. OpenLongPDF does not store credentials, cookies, access tokens, or session data.
+
+## Manual And Fallback Workflows
 
 ### Local GUI For ChatGPT
 
@@ -32,12 +53,13 @@ The GUI opens a local browser page where you can:
 - generate multi-chunk packs,
 - copy a pack to the clipboard,
 - install a ChatGPT-side Browser Assist helper,
-- send one queued pack or auto-send remaining queued packs from the ChatGPT page,
-- paste the translated response back,
-- import translated chunks,
-- assemble the final reading notes.
+- send one queued pack, or auto-send/capture/import/assemble remaining queued packs from the ChatGPT page,
+- see pack progress: pending, sent, imported, and failed,
+- retry a failed pack or reset assist state,
+- paste/import responses manually if automatic capture fails,
+- assemble the final reading notes manually.
 
-The GUI does not store ChatGPT credentials, cookies, access tokens, or responses. Browser Assist is optional: it runs only after you click its bookmarklet on ChatGPT, then uses visible buttons to fill and send queued packs. It may stop if ChatGPT changes its page structure.
+The GUI does not store ChatGPT credentials, cookies, access tokens, or session data. Browser Assist is optional and visible: it runs only after you click its bookmarklet on ChatGPT and confirm the auto session. It may stop if ChatGPT changes its page structure.
 
 ### CLI Paste Assist
 
@@ -108,9 +130,21 @@ In the local GUI:
 3. Drag the `OpenLongPDF Assist` bookmarklet to your bookmarks bar.
 4. Open ChatGPT.
 5. Click the bookmarklet on the ChatGPT page.
-6. Use `Send next OpenLongPDF pack` or `Auto-send remaining packs`.
+6. Use `Send next OpenLongPDF pack` for one pack, or `Auto-send, capture, import, and assemble remaining packs` for the full remaining queue.
 
-The helper fetches queued pack text from the local GUI, fills the ChatGPT composer, clicks send, and marks that pack as sent in `output/assist_state.json`. It does not read ChatGPT's answer or import translations automatically; after ChatGPT replies, paste each translated response back into the GUI import box or save it under `output/pack_responses/`.
+The helper fetches queued pack text from the local GUI, records the current assistant-message state, fills the ChatGPT composer, clicks send, waits for the response to finish, extracts the newly visible assistant response, and posts it to `POST /assist/import-response` on the local GUI. The GUI saves the raw response under `output/pack_responses/`, imports marked translated chunk blocks into `translated_chunks/`, updates `output/assist_state.json`, and runs `assemble` automatically after all packs are imported.
+
+Automatic capture uses fallback DOM selectors including `[data-message-author-role="assistant"]`, `article`, `.markdown`, and text fallback. This is intentionally a visible browser helper, not ChatGPT scraping in the background. ChatGPT DOM changes can break capture. If capture or import fails, the GUI marks the pack as `failed`, stores the failed response as `output/pack_responses/<pack>_failed_response.md` when available, and shows the failed pack/error so you can retry from the GUI.
+
+`output/assist_state.json` tracks each pack as:
+
+- `pending`
+- `sending`
+- `sent`
+- `imported`
+- `failed`
+
+On resume, imported packs are skipped. Failed packs stop auto-run until you use `Retry failed pack` or `Reset assist state` in the GUI.
 
 If a WSL path contains spaces or non-ASCII characters, prefer command variables or tab completion instead of retyping the path. For example:
 
@@ -191,7 +225,7 @@ openlongpdf assemble book_openlongpdf
 
 `translate` sends each missing chunk to an OpenAI-compatible `/chat/completions` API, saves every response immediately into `translated_chunks/`, and skips chunks that are already translated. It refuses to call the paid API until `--yes` is provided. By default it reads the API key from `OPENAI_API_KEY`; use `--api-key-env` and `--base-url` for another compatible provider.
 
-ChatGPT Plus/Pro website subscriptions are not API credentials. Automatic API translation requires a provider API key and may incur API charges.
+ChatGPT Plus/Pro website subscriptions are not API credentials. The primary Browser Assist route uses your logged-in ChatGPT browser session and does not need an API key. The separate `translate` command requires a provider API key and may incur API charges.
 
 ## What This Is Not
 

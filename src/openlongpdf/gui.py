@@ -8,6 +8,7 @@ import socket
 import urllib.parse
 import webbrowser
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from .sizing import recommend_chunks_per_pack
 PACK_RE = re.compile(r"^pack_\d{3}(?:\.md)?$")
 CHATGPT_URL = "https://chatgpt.com/"
 ASSIST_STATE_PATH = "output/assist_state.json"
+ASSIST_STATUSES = {"pending", "sending", "sent", "imported", "failed"}
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,31 @@ class AssistPack:
     name: str
     text: str
     response_path: str
+
+
+@dataclass(frozen=True)
+class AssistSummary:
+    total: int
+    pending: int
+    sending: int
+    sent: int
+    imported: int
+    failed: int
+    next_pack: str | None
+    last_error: str | None
+    packs: dict[str, dict[str, object]]
+
+
+@dataclass(frozen=True)
+class AssistImportResult:
+    ok: bool
+    pack_name: str
+    response_path: Path
+    imported_chunk_names: list[str]
+    assembled: bool
+    markdown_path: Path | None = None
+    html_path: Path | None = None
+    error: str | None = None
 
 
 def run_gui(project_dir: str | Path, *, host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) -> None:
@@ -54,6 +81,7 @@ def render_dashboard(project_dir: str | Path, *, message: str = "") -> str:
     status = get_status(project.project_dir)
     recommendation = recommend_chunks_per_pack(project.project_dir)
     packs = sorted((project.project_dir / "output" / "packs").glob("pack_*.md"))
+    assist_summary = get_assist_summary(project.project_dir)
     pack_items = "\n".join(_render_pack_item(project, path) for path in packs)
     if not pack_items:
         pack_items = "<p>No packs yet. Generate packs below.</p>"
@@ -82,6 +110,7 @@ def render_dashboard(project_dir: str | Path, *, message: str = "") -> str:
     code {{ word-break: break-all; }}
     .actions {{ display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }}
     .muted {{ color: #6b7280; }}
+    .failed {{ color: #b91c1c; }}
   </style>
 </head>
 <body>
@@ -105,7 +134,8 @@ def render_dashboard(project_dir: str | Path, *, message: str = "") -> str:
 
   <section class="panel">
     <h2>Packs</h2>
-    <p><a href="/assist">Browser Assist</a> can add a ChatGPT-side button that sends queued packs from the ChatGPT page.</p>
+    <p><a href="/assist">Browser Assist</a> can add a ChatGPT-side helper that sends queued packs, captures ChatGPT replies, imports them, and assembles the finished notes.</p>
+    {_render_assist_progress(assist_summary)}
     {pack_items}
   </section>
 
@@ -151,6 +181,92 @@ def import_response_text(project_dir: str | Path, response_text: str) -> list[Pa
     return import_pack_response(project_dir, response_text)
 
 
+def get_assist_summary(project_dir: str | Path) -> AssistSummary:
+    project = Project.load(project_dir)
+    state = _read_assist_state(project.project_dir)
+    packs = state["packs"]
+    failed_record = next((record for record in packs.values() if record["status"] == "failed"), None)
+    next_pack = None
+    if failed_record is None:
+        for name, record in packs.items():
+            if record["status"] == "pending":
+                next_pack = name
+                break
+    return AssistSummary(
+        total=len(packs),
+        pending=sum(1 for record in packs.values() if record["status"] == "pending"),
+        sending=sum(1 for record in packs.values() if record["status"] == "sending"),
+        sent=sum(1 for record in packs.values() if record["status"] == "sent"),
+        imported=sum(1 for record in packs.values() if record["status"] == "imported"),
+        failed=sum(1 for record in packs.values() if record["status"] == "failed"),
+        next_pack=next_pack,
+        last_error=str(failed_record.get("last_error") or "") if failed_record else None,
+        packs=packs,
+    )
+
+
+def import_assist_pack_response(project_dir: str | Path, pack_name: str, response_text: str) -> AssistImportResult:
+    project = Project.load(project_dir)
+    pack_path = resolve_pack_path(project.project_dir, pack_name)
+    normalized_pack = pack_path.stem
+    response_dir = project.project_dir / "output" / "pack_responses"
+    response_dir.mkdir(parents=True, exist_ok=True)
+    response_path = response_dir / f"{normalized_pack}_response.md"
+    failed_path = response_dir / f"{normalized_pack}_failed_response.md"
+    raw_text = response_text.rstrip() + "\n"
+
+    try:
+        if not response_text.strip():
+            raise ValueError("Translated response is empty")
+        saved_paths = import_pack_response(project.project_dir, response_text)
+    except (FileExistsError, ValueError, RuntimeError) as exc:
+        failed_path.write_text(raw_text, encoding="utf-8")
+        _set_assist_pack_state(
+            project.project_dir,
+            normalized_pack,
+            "failed",
+            last_error=str(exc),
+            response_path=_project_relative(project, failed_path),
+            imported_chunk_names=[],
+        )
+        return AssistImportResult(
+            ok=False,
+            pack_name=normalized_pack,
+            response_path=failed_path,
+            imported_chunk_names=[],
+            assembled=False,
+            error=str(exc),
+        )
+
+    response_path.write_text(raw_text, encoding="utf-8")
+    imported_chunk_names = [path.name.removesuffix("_translated.md") for path in saved_paths]
+    _set_assist_pack_state(
+        project.project_dir,
+        normalized_pack,
+        "imported",
+        last_error="",
+        response_path=_project_relative(project, response_path),
+        imported_chunk_names=imported_chunk_names,
+    )
+    assembled = False
+    markdown_path = None
+    html_path = None
+    if _all_assist_packs_imported(project.project_dir) and get_status(project.project_dir).remaining_chunks == 0:
+        outputs = assemble_project(project.project_dir)
+        assembled = True
+        markdown_path = outputs.markdown_path
+        html_path = outputs.html_path
+    return AssistImportResult(
+        ok=True,
+        pack_name=normalized_pack,
+        response_path=response_path,
+        imported_chunk_names=imported_chunk_names,
+        assembled=assembled,
+        markdown_path=markdown_path,
+        html_path=html_path,
+    )
+
+
 def render_browser_assist(
     project_dir: str | Path,
     *,
@@ -159,6 +275,7 @@ def render_browser_assist(
 ) -> str:
     project = Project.load(project_dir)
     packs = sorted((project.project_dir / "output" / "packs").glob("pack_*.md"))
+    summary = get_assist_summary(project.project_dir)
     next_pack = next_assist_pack(project.project_dir)
     next_text = next_pack.name if next_pack else "none"
     bookmarklet = _build_bookmarklet(base_url=base_url, token=token)
@@ -185,6 +302,7 @@ def render_browser_assist(
   <section class="panel">
     <p>Project: <code>{html.escape(str(project.project_dir))}</code></p>
     <p>Packs: {len(packs)} generated. Next unsent pack: <strong>{html.escape(next_text)}</strong>.</p>
+    <p>Assist state: {summary.pending} pending, {summary.sent} sent, {summary.imported} imported, {summary.failed} failed.</p>
   </section>
   <section class="panel">
     <h2>Install ChatGPT Helper</h2>
@@ -194,9 +312,10 @@ def render_browser_assist(
   </section>
   <section class="panel">
     <h2>What It Does</h2>
-    <p>The helper adds two visible buttons on ChatGPT: <strong>Send next OpenLongPDF pack</strong> and <strong>Auto-send remaining packs</strong>.</p>
-    <p>It fetches pack text from this local GUI, fills the ChatGPT composer, and clicks the send button only after you explicitly start it. It does not read ChatGPT responses, store credentials, cookies, or access tokens.</p>
-    <p class="muted">Automatic sending depends on ChatGPT's visible page structure and may stop if the UI changes. When it stops, resend manually or use the one-pack button.</p>
+    <p>The helper adds two visible buttons on ChatGPT: <strong>Send next OpenLongPDF pack</strong> and <strong>Auto-send, capture, import, and assemble remaining packs</strong>.</p>
+    <p>Auto mode asks for one-time consent at the beginning of the session. After that consent, it sends each remaining pack, waits for ChatGPT to finish, extracts the new assistant response from visible DOM selectors such as <code>data-message-author-role="assistant"</code>, <code>article</code>, and <code>.markdown</code>, posts the response back to <code>/assist/import-response</code>, imports translated chunks, and assembles the final notes when all packs are imported.</p>
+    <p>It does not store ChatGPT credentials, cookies, access tokens, or session data. It reads only the visible assistant response in the ChatGPT tab after you start it.</p>
+    <p class="muted">Automatic capture depends on ChatGPT's visible page structure and may stop if the UI changes. If it stops, the GUI shows the failed pack and the saved failed response path for debugging.</p>
   </section>
   <p><a href="/">Back to project</a> | <a href="{CHATGPT_URL}" target="_blank" rel="noreferrer">Open ChatGPT</a></p>
 </main>
@@ -207,9 +326,12 @@ def render_browser_assist(
 
 def next_assist_pack(project_dir: str | Path) -> AssistPack | None:
     project = Project.load(project_dir)
-    sent_packs = set(_read_assist_state(project.project_dir).get("sent_packs", []))
+    summary = get_assist_summary(project.project_dir)
+    if summary.failed:
+        return None
     for path in sorted((project.project_dir / "output" / "packs").glob("pack_*.md")):
-        if path.stem in sent_packs:
+        record = summary.packs.get(path.stem, {})
+        if record.get("status") != "pending":
             continue
         response_path = project.project_dir / "output" / "pack_responses" / f"{path.stem}_response.md"
         return AssistPack(
@@ -221,16 +343,147 @@ def next_assist_pack(project_dir: str | Path) -> AssistPack | None:
 
 
 def mark_assist_pack_sent(project_dir: str | Path, pack_name: str) -> None:
+    _set_assist_pack_state(project_dir, pack_name, "sent")
+
+
+def mark_assist_pack_sending(project_dir: str | Path, pack_name: str) -> None:
+    _set_assist_pack_state(project_dir, pack_name, "sending")
+
+
+def mark_assist_pack_failed(project_dir: str | Path, pack_name: str, error: str) -> None:
+    project = Project.load(project_dir)
+    pack_path = resolve_pack_path(project.project_dir, pack_name)
+    failed_path = project.project_dir / "output" / "pack_responses" / f"{pack_path.stem}_failed_response.md"
+    _set_assist_pack_state(
+        project.project_dir,
+        pack_path.stem,
+        "failed",
+        last_error=error,
+        response_path=_project_relative(project, failed_path),
+        imported_chunk_names=[],
+    )
+
+
+def retry_failed_assist_pack(project_dir: str | Path, pack_name: str | None = None) -> str:
+    project = Project.load(project_dir)
+    summary = get_assist_summary(project.project_dir)
+    target = pack_name
+    if target is None:
+        for name, record in summary.packs.items():
+            if record.get("status") == "failed":
+                target = name
+                break
+    if target is None:
+        raise ValueError("No failed assist pack to retry")
+    record = summary.packs.get(target)
+    if record is None:
+        raise ValueError(f"Unknown pack: {target}")
+    if record.get("status") != "failed":
+        raise ValueError(f"Pack is not failed: {target}")
+    _set_assist_pack_state(project.project_dir, target, "pending", last_error="", imported_chunk_names=[])
+    return target
+
+
+def reset_assist_state(project_dir: str | Path) -> None:
+    project = Project.load(project_dir)
+    packs = {}
+    for pack_path in sorted((project.project_dir / "output" / "packs").glob("pack_*.md")):
+        chunk_names = _pack_chunk_names(pack_path)
+        imported_chunk_names = [name for name in chunk_names if _has_chunk_translation(project, name)]
+        status = "imported" if chunk_names and len(imported_chunk_names) == len(chunk_names) else "pending"
+        response_path = project.project_dir / "output" / "pack_responses" / f"{pack_path.stem}_response.md"
+        packs[pack_path.stem] = _assist_record(
+            status=status,
+            response_path=_project_relative(project, response_path),
+            imported_chunk_names=imported_chunk_names if status == "imported" else [],
+        )
+    _write_assist_state(project.project_dir, {"packs": packs})
+
+
+def _set_assist_pack_state(
+    project_dir: str | Path,
+    pack_name: str,
+    status: str,
+    *,
+    last_error: str = "",
+    response_path: str | None = None,
+    imported_chunk_names: list[str] | None = None,
+) -> None:
     if not PACK_RE.fullmatch(pack_name):
         raise ValueError(f"Invalid pack name: {pack_name}")
     project = Project.load(project_dir)
-    resolve_pack_path(project.project_dir, pack_name)
+    pack_path = resolve_pack_path(project.project_dir, pack_name)
+    if status not in ASSIST_STATUSES:
+        raise ValueError(f"Invalid assist pack status: {status}")
     state = _read_assist_state(project.project_dir)
-    sent_packs = list(state.get("sent_packs", []))
-    if pack_name not in sent_packs:
-        sent_packs.append(pack_name)
-    state["sent_packs"] = sent_packs
+    packs = state["packs"]
+    record = dict(packs.get(pack_path.stem, _assist_record()))
+    record["status"] = status
+    record["last_error"] = last_error
+    if response_path is not None:
+        record["response_path"] = response_path
+    elif not record.get("response_path"):
+        response = project.project_dir / "output" / "pack_responses" / f"{pack_path.stem}_response.md"
+        record["response_path"] = _project_relative(project, response)
+    if imported_chunk_names is not None:
+        record["imported_chunk_names"] = imported_chunk_names
+    packs[pack_path.stem] = record
     _write_assist_state(project.project_dir, state)
+
+
+def _render_assist_progress(summary: AssistSummary) -> str:
+    failed_html = ""
+    if summary.failed:
+        failed_items = []
+        for pack_name, record in summary.packs.items():
+            if record.get("status") != "failed":
+                continue
+            failed_items.append(
+                "<li>"
+                f"<strong>{html.escape(pack_name)}</strong>: {html.escape(str(record.get('last_error') or 'failed'))}"
+                "</li>"
+            )
+        failed_html = (
+            '<div class="failed"><p><strong>Failed packs need attention before auto-run can continue.</strong></p>'
+            f"<ul>{''.join(failed_items)}</ul></div>"
+            '<form method="post" action="/assist/retry-failed" class="actions">'
+            '<button type="submit">Retry failed pack</button>'
+            "</form>"
+        )
+    return f"""<div class="meta">
+  <p><strong>Assist progress:</strong> {summary.total} packs total, {summary.pending} pending, {summary.sent} sent, {summary.imported} imported, {summary.failed} failed.</p>
+  <p><strong>Next pack:</strong> {html.escape(summary.next_pack or "none")}</p>
+  <form method="post" action="/assist/reset-state" class="actions">
+    <button type="submit">Reset assist state</button>
+  </form>
+  {failed_html}
+</div>"""
+
+
+def _summary_payload(summary: AssistSummary) -> dict[str, object]:
+    return {
+        "total": summary.total,
+        "pending": summary.pending,
+        "sending": summary.sending,
+        "sent": summary.sent,
+        "imported": summary.imported,
+        "failed": summary.failed,
+        "nextPack": summary.next_pack,
+        "lastError": summary.last_error,
+    }
+
+
+def _assist_import_payload(result: AssistImportResult) -> dict[str, object]:
+    return {
+        "ok": result.ok,
+        "pack": result.pack_name,
+        "responsePath": result.response_path.as_posix(),
+        "importedChunkNames": result.imported_chunk_names,
+        "assembled": result.assembled,
+        "markdownPath": result.markdown_path.as_posix() if result.markdown_path else None,
+        "htmlPath": result.html_path.as_posix() if result.html_path else None,
+        "error": result.error,
+    }
 
 
 def _render_pack_item(project: Project, path: Path) -> str:
@@ -273,9 +526,20 @@ def _make_handler(project_dir: Path, *, base_url: str = "http://127.0.0.1:8765",
                     return
                 if parsed.path == "/assist/next.json":
                     self._require_assist_token(parsed)
+                    summary = get_assist_summary(project_dir)
+                    if summary.failed:
+                        self._send_json(
+                            {
+                                "done": False,
+                                "blocked": True,
+                                "error": summary.last_error,
+                                "state": _summary_payload(summary),
+                            }
+                        )
+                        return
                     pack = next_assist_pack(project_dir)
                     if pack is None:
-                        self._send_json({"done": True})
+                        self._send_json({"done": True, "state": _summary_payload(summary)})
                     else:
                         self._send_json(
                             {
@@ -283,6 +547,7 @@ def _make_handler(project_dir: Path, *, base_url: str = "http://127.0.0.1:8765",
                                 "pack": pack.name,
                                 "text": pack.text,
                                 "responsePath": pack.response_path,
+                                "state": _summary_payload(summary),
                             }
                         )
                     return
@@ -302,24 +567,58 @@ def _make_handler(project_dir: Path, *, base_url: str = "http://127.0.0.1:8765",
                 parsed = urllib.parse.urlparse(self.path)
                 if parsed.path == "/assist/mark-sent":
                     self._require_assist_token(parsed)
-                    fields = self._read_form()
+                    fields = self._read_payload()
                     pack_name = fields.get("pack", "")
                     mark_assist_pack_sent(project_dir, pack_name)
                     self._send_json({"ok": True, "pack": pack_name})
                     return
-                fields = self._read_form()
-                if self.path == "/pack":
+                if parsed.path == "/assist/mark-sending":
+                    self._require_assist_token(parsed)
+                    fields = self._read_payload()
+                    pack_name = fields.get("pack", "")
+                    mark_assist_pack_sending(project_dir, pack_name)
+                    self._send_json({"ok": True, "pack": pack_name})
+                    return
+                if parsed.path == "/assist/mark-failed":
+                    self._require_assist_token(parsed)
+                    fields = self._read_payload()
+                    pack_name = fields.get("pack", "")
+                    error = fields.get("error", "ChatGPT response capture failed")
+                    mark_assist_pack_failed(project_dir, pack_name, error)
+                    self._send_json({"ok": True, "pack": pack_name, "error": error})
+                    return
+                if parsed.path == "/assist/import-response":
+                    self._require_assist_token(parsed)
+                    fields = self._read_payload()
+                    result = import_assist_pack_response(
+                        project_dir,
+                        fields.get("pack", ""),
+                        fields.get("responseText") or fields.get("response_text", ""),
+                    )
+                    payload = _assist_import_payload(result)
+                    self._send_json(payload, status=200 if result.ok else 400)
+                    return
+                fields = self._read_payload()
+                if parsed.path == "/pack":
                     chunks_per_pack = int(fields.get("chunks_per_pack", "4"))
                     result = write_translation_packs(project_dir, chunks_per_pack=chunks_per_pack)
                     self._redirect(f"/?message={urllib.parse.quote(f'Generated {len(result.pack_paths)} packs')}")
                     return
-                if self.path == "/import":
+                if parsed.path == "/import":
                     saved = import_response_text(project_dir, fields.get("response_text", ""))
                     self._redirect(f"/?message={urllib.parse.quote(f'Imported {len(saved)} translated chunks')}")
                     return
-                if self.path == "/assemble":
+                if parsed.path == "/assemble":
                     outputs = assemble_project(project_dir)
                     self._redirect(f"/?message={urllib.parse.quote(f'Wrote {outputs.markdown_path.name} and {outputs.html_path.name}')}")
+                    return
+                if parsed.path == "/assist/reset-state":
+                    reset_assist_state(project_dir)
+                    self._redirect("/?message=Assist%20state%20reset")
+                    return
+                if parsed.path == "/assist/retry-failed":
+                    retried = retry_failed_assist_pack(project_dir)
+                    self._redirect(f"/?message={urllib.parse.quote(f'Retrying {retried}')}")
                     return
                 self.send_error(404)
             except PermissionError as exc:
@@ -336,6 +635,16 @@ def _make_handler(project_dir: Path, *, base_url: str = "http://127.0.0.1:8765",
             parsed = urllib.parse.parse_qs(data, keep_blank_values=True)
             return {key: values[-1] for key, values in parsed.items()}
 
+        def _read_payload(self) -> dict[str, str]:
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8")
+            content_type = self.headers.get("Content-Type", "")
+            if "application/json" in content_type:
+                data = json.loads(raw or "{}")
+                return {str(key): "" if value is None else str(value) for key, value in data.items()}
+            parsed = urllib.parse.parse_qs(raw, keep_blank_values=True)
+            return {key: values[-1] for key, values in parsed.items()}
+
         def _send_html(self, body: str, *, status: int = 200) -> None:
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -348,8 +657,8 @@ def _make_handler(project_dir: Path, *, base_url: str = "http://127.0.0.1:8765",
             self.end_headers()
             self.wfile.write(body.encode("utf-8"))
 
-        def _send_json(self, data: dict[str, object]) -> None:
-            self.send_response(200)
+        def _send_json(self, data: dict[str, object], *, status: int = 200) -> None:
+            self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self._send_cors_headers()
             self.end_headers()
@@ -386,20 +695,103 @@ def _find_free_port(host: str, start_port: int) -> int:
 
 
 def _read_assist_state(project_dir: Path) -> dict[str, object]:
-    path = project_dir / ASSIST_STATE_PATH
+    project = Project.load(project_dir)
+    path = project.project_dir / ASSIST_STATE_PATH
     if not path.exists():
-        return {"sent_packs": []}
-    data = json.loads(path.read_text(encoding="utf-8"))
-    sent_packs = data.get("sent_packs", [])
-    if not isinstance(sent_packs, list):
-        return {"sent_packs": []}
-    return {"sent_packs": [str(item) for item in sent_packs]}
+        return _normalize_assist_state(project, {})
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return _normalize_assist_state(project, {})
+    return _normalize_assist_state(project, data)
 
 
 def _write_assist_state(project_dir: Path, state: dict[str, object]) -> None:
     path = project_dir / ASSIST_STATE_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
+    state["updated_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _normalize_assist_state(project: Project, raw_state: dict[str, object]) -> dict[str, object]:
+    raw_packs = raw_state.get("packs", {})
+    if not isinstance(raw_packs, dict):
+        raw_packs = {}
+    old_sent = raw_state.get("sent_packs", [])
+    if not isinstance(old_sent, list):
+        old_sent = []
+    old_sent_packs = {str(item) for item in old_sent}
+
+    packs: dict[str, dict[str, object]] = {}
+    for pack_path in sorted((project.project_dir / "output" / "packs").glob("pack_*.md")):
+        name = pack_path.stem
+        raw_record = raw_packs.get(name, {})
+        if not isinstance(raw_record, dict):
+            raw_record = {}
+        chunk_names = _pack_chunk_names(pack_path)
+        imported_chunk_names = [chunk_name for chunk_name in chunk_names if _has_chunk_translation(project, chunk_name)]
+        default_response = project.project_dir / "output" / "pack_responses" / f"{name}_response.md"
+        status = str(raw_record.get("status") or ("sent" if name in old_sent_packs else "pending"))
+        if status not in ASSIST_STATUSES:
+            status = "pending"
+        if chunk_names and len(imported_chunk_names) == len(chunk_names):
+            status = "imported"
+        record_imported = raw_record.get("imported_chunk_names", [])
+        if not isinstance(record_imported, list):
+            record_imported = []
+        if status == "imported":
+            record_imported = imported_chunk_names
+        packs[name] = _assist_record(
+            status=status,
+            last_error=str(raw_record.get("last_error") or ""),
+            response_path=str(raw_record.get("response_path") or _project_relative(project, default_response)),
+            imported_chunk_names=[str(item) for item in record_imported],
+        )
+    return {"version": 1, "packs": packs, "updated_at": str(raw_state.get("updated_at") or "")}
+
+
+def _assist_record(
+    *,
+    status: str = "pending",
+    last_error: str = "",
+    response_path: str = "",
+    imported_chunk_names: list[str] | None = None,
+) -> dict[str, object]:
+    return {
+        "status": status,
+        "last_error": last_error,
+        "response_path": response_path,
+        "imported_chunk_names": imported_chunk_names or [],
+    }
+
+
+def _pack_chunk_names(pack_path: Path) -> list[str]:
+    text = pack_path.read_text(encoding="utf-8")
+    names = re.findall(r"--- BEGIN SOURCE CHUNK (chunk_\d{3}) ---", text)
+    if names:
+        return names
+    match = re.search(r"Chunks in this pack:\s*(?P<names>chunk_\d{3}(?:,\s*chunk_\d{3})*)", text)
+    if not match:
+        return []
+    return [name.strip() for name in match.group("names").split(",")]
+
+
+def _has_chunk_translation(project: Project, chunk_name: str) -> bool:
+    for chunk in project.chunks:
+        if chunk.name != chunk_name:
+            continue
+        path = project.abs_path(chunk.translated_path)
+        return path.exists() and bool(path.read_text(encoding="utf-8").strip())
+    return False
+
+
+def _all_assist_packs_imported(project_dir: str | Path) -> bool:
+    summary = get_assist_summary(project_dir)
+    return summary.total > 0 and summary.imported == summary.total
+
+
+def _project_relative(project: Project, path: Path) -> str:
+    return path.relative_to(project.project_dir).as_posix()
 
 
 def _build_bookmarklet(*, base_url: str, token: str) -> str:
@@ -425,7 +817,7 @@ def _build_bookmarklet(*, base_url: str, token: str) -> str:
   panel.innerHTML = `
     <div style="font-weight:700;margin-bottom:8px">OpenLongPDF Assist</div>
     <button id="openlongpdf-send-next" style="margin:0 6px 6px 0;padding:6px 8px">Send next OpenLongPDF pack</button>
-    <button id="openlongpdf-auto-send" style="margin:0 0 6px 0;padding:6px 8px">Auto-send remaining packs</button>
+    <button id="openlongpdf-auto-send" style="margin:0 0 6px 0;padding:6px 8px">Auto-send, capture, import, and assemble remaining packs</button>
     <button id="openlongpdf-close" style="margin-left:6px;padding:6px 8px">Close</button>
     <div id="openlongpdf-status" style="margin-top:6px;color:#d1d5db">Ready.</div>
   `;
@@ -436,16 +828,37 @@ def _build_bookmarklet(*, base_url: str, token: str) -> str:
   async function fetchNextPack() {{
     const response = await fetch(`${{server}}/assist/next.json?token=${{encodeURIComponent(token)}}`);
     if (!response.ok) throw new Error(`OpenLongPDF local server returned ${{response.status}}`);
-    return await response.json();
+    const data = await response.json();
+    if (data.blocked) throw new Error(data.error || "OpenLongPDF is blocked by a failed pack. Retry it in the local GUI.");
+    return data;
+  }}
+  async function postLocal(path, payload) {{
+    const response = await fetch(`${{server}}${{path}}?token=${{encodeURIComponent(token)}}`, {{
+      method: "POST",
+      headers: {{ "Content-Type": "application/json" }},
+      body: JSON.stringify(payload)
+    }});
+    const text = await response.text();
+    let data = {{}};
+    if (text) {{
+      try {{ data = JSON.parse(text); }} catch (_error) {{ data = {{ error: text }}; }}
+    }}
+    if (!response.ok) throw new Error(data.error || `OpenLongPDF local server returned ${{response.status}}`);
+    return data;
+  }}
+  async function markSending(packName) {{
+    await postLocal("/assist/mark-sending", {{ pack: packName }});
   }}
   async function markSent(packName) {{
-    const body = new URLSearchParams({{ pack: packName }});
-    const response = await fetch(`${{server}}/assist/mark-sent?token=${{encodeURIComponent(token)}}`, {{
-      method: "POST",
-      headers: {{ "Content-Type": "application/x-www-form-urlencoded" }},
-      body
-    }});
-    if (!response.ok) throw new Error(`Could not mark ${{packName}} as sent`);
+    await postLocal("/assist/mark-sent", {{ pack: packName }});
+  }}
+  async function markFailed(packName, error) {{
+    if (!packName) return;
+    try {{ await postLocal("/assist/mark-failed", {{ pack: packName, error: String(error.message || error) }}); }}
+    catch (_error) {{}}
+  }}
+  async function importResponse(packName, responseText) {{
+    return await postLocal("/assist/import-response", {{ pack: packName, responseText }});
   }}
   function composer() {{
     return document.querySelector("#prompt-textarea")
@@ -454,12 +867,55 @@ def _build_bookmarklet(*, base_url: str, token: str) -> str:
   }}
   function sendButton() {{
     return document.querySelector("[data-testid='send-button']")
+      || document.querySelector("[data-testid='composer-send-button']")
       || document.querySelector("button[aria-label='Send prompt']")
       || Array.from(document.querySelectorAll("button")).find((button) => /send/i.test(button.getAttribute("aria-label") || ""));
   }}
   function stopButton() {{
     return document.querySelector("[data-testid='stop-button']")
       || Array.from(document.querySelectorAll("button")).find((button) => /stop/i.test(button.getAttribute("aria-label") || ""));
+  }}
+  function visibleText(node) {{
+    if (!node) return "";
+    const style = window.getComputedStyle(node);
+    if (style.display === "none" || style.visibility === "hidden") return "";
+    return (node.innerText || node.textContent || "").trim();
+  }}
+  function assistantNodes() {{
+    const selectors = [
+      "[data-message-author-role='assistant']",
+      "article",
+      ".markdown"
+    ];
+    for (const selector of selectors) {{
+      const nodes = Array.from(document.querySelectorAll(selector)).filter((node) => visibleText(node));
+      if (nodes.length) return nodes;
+    }}
+    const main = document.querySelector("main") || document.body;
+    return Array.from(main.querySelectorAll("div")).filter((node) => visibleText(node).length > 100);
+  }}
+  function markdownishText(node) {{
+    const clone = node.cloneNode(true);
+    clone.querySelectorAll("pre").forEach((pre) => {{
+      pre.textContent = `\\n\\`\\`\\`\\n${{pre.innerText || pre.textContent || ""}}\\n\\`\\`\\`\\n`;
+    }});
+    clone.querySelectorAll("li").forEach((li) => {{
+      if (!/^[-*]\\s/.test(li.textContent || "")) li.textContent = `- ${{li.textContent || ""}}`;
+    }});
+    return visibleText(clone);
+  }}
+  function assistantTexts() {{
+    return assistantNodes().map(markdownishText).filter(Boolean);
+  }}
+  function captureNewAssistantText(beforeTexts) {{
+    const afterTexts = assistantTexts();
+    if (afterTexts.length > beforeTexts.length) {{
+      return afterTexts.slice(beforeTexts.length).join("\\n\\n").trim();
+    }}
+    if (afterTexts.length && afterTexts[afterTexts.length - 1] !== beforeTexts[beforeTexts.length - 1]) {{
+      return afterTexts[afterTexts.length - 1].trim();
+    }}
+    return "";
   }}
   async function fillComposer(text) {{
     const target = composer();
@@ -487,15 +943,33 @@ def _build_bookmarklet(*, base_url: str, token: str) -> str:
     }}
     throw new Error("Timed out waiting for ChatGPT to finish responding.");
   }}
+  async function waitForAssistantResponse(beforeTexts) {{
+    const started = Date.now();
+    let latest = "";
+    while (Date.now() - started < 600000) {{
+      const captured = captureNewAssistantText(beforeTexts);
+      if (captured) latest = captured;
+      if (latest && !stopButton()) {{
+        await sleep(1200);
+        return captureNewAssistantText(beforeTexts) || latest;
+      }}
+      await sleep(1000);
+    }}
+    throw new Error("Timed out waiting for a new ChatGPT assistant response.");
+  }}
   async function sendOne({{ confirmFirst = true }} = {{}}) {{
     await waitUntilIdle();
-    const pack = await fetchNextPack();
+    const pack = window.__openlongpdfNextPackOverride || await fetchNextPack();
+    window.__openlongpdfNextPackOverride = null;
     if (pack.done) {{
       setStatus("No unsent packs remain.");
       return false;
     }}
-    if (confirmFirst && !confirm(`Send ${{pack.pack}} to ChatGPT?`)) return false;
+    window.__openlongpdfCurrentPack = pack.pack;
+    if (confirmFirst && !confirm(`Send ${{pack.pack}} to ChatGPT, capture the reply, import it locally, and assemble if this finishes the project?`)) return false;
     setStatus(`Filling ${{pack.pack}}...`);
+    const beforeTexts = assistantTexts();
+    await markSending(pack.pack);
     await fillComposer(pack.text);
     await sleep(250);
     const button = sendButton();
@@ -505,22 +979,49 @@ def _build_bookmarklet(*, base_url: str, token: str) -> str:
     }}
     button.click();
     await markSent(pack.pack);
-    setStatus(`Sent ${{pack.pack}}. Save response to ${{pack.responsePath}}.`);
+    setStatus(`Waiting for ChatGPT response to ${{pack.pack}}...`);
+    const responseText = await waitForAssistantResponse(beforeTexts);
+    if (!responseText.trim()) throw new Error(`Could not capture ChatGPT response for ${{pack.pack}}.`);
+    setStatus(`Importing ${{pack.pack}} response...`);
+    const imported = await importResponse(pack.pack, responseText);
+    if (imported.assembled) {{
+      setStatus(`Imported ${{pack.pack}} and assembled reading notes.`);
+    }} else {{
+      setStatus(`Imported ${{pack.pack}}: ${{imported.importedChunkNames.join(", ")}}.`);
+    }}
     return true;
   }}
   panel.querySelector("#openlongpdf-send-next").onclick = async () => {{
-    try {{ await sendOne({{ confirmFirst: true }}); }}
-    catch (error) {{ setStatus(error.message); alert(error.message); }}
+    let currentPack = "";
+    try {{
+      const pack = await fetchNextPack();
+      if (pack.done) {{ setStatus("No pending packs remain."); return; }}
+      currentPack = pack.pack;
+      window.__openlongpdfNextPackOverride = pack;
+      await sendOne({{ confirmFirst: true }});
+      window.__openlongpdfNextPackOverride = null;
+    }}
+    catch (error) {{ await markFailed(currentPack, error); setStatus(error.message); alert(error.message); }}
   }};
   panel.querySelector("#openlongpdf-auto-send").onclick = async () => {{
-    if (!confirm("Auto-send remaining OpenLongPDF packs? Keep this ChatGPT tab open. The helper stops at the first error.")) return;
+    if (!confirm("One-time consent: OpenLongPDF will send each remaining pack in this ChatGPT tab, capture each visible assistant reply, POST it to the local GUI for import, and assemble when all packs are imported. Keep this tab open. Continue?")) return;
+    let currentPack = "";
     try {{
-      while (await sendOne({{ confirmFirst: false }})) {{
+      while (true) {{
+        const pack = await fetchNextPack();
+        if (pack.done) {{ setStatus("All pending packs are imported or no pending packs remain."); break; }}
+        currentPack = pack.pack;
+        window.__openlongpdfNextPackOverride = pack;
+        if (!(await sendOne({{ confirmFirst: false }}))) break;
+        window.__openlongpdfNextPackOverride = null;
         await sleep(1500);
       }}
     }} catch (error) {{
+      await markFailed(currentPack, error);
       setStatus(error.message);
       alert(error.message);
+    }} finally {{
+      window.__openlongpdfNextPackOverride = null;
     }}
   }};
   panel.querySelector("#openlongpdf-close").onclick = () => panel.remove();
