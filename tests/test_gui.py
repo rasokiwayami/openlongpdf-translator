@@ -110,6 +110,8 @@ def test_chrome_extension_files_define_chatgpt_assist():
     assert "hasCompleteTranslatedBlocks" in core
     assert "--- END TRANSLATED CHUNK ---" in core
     assert "送信" in core
+    assert "Timed out waiting for complete translated chunk blocks" in core
+    assert "Date.now() - lastChanged > 15000" not in core
 
 
 def test_assist_pack_queue_tracks_sent_packs(tmp_path):

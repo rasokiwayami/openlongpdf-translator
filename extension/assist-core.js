@@ -250,15 +250,15 @@
         if (latest && !expectedChunks.length && !stopButton() && Date.now() - lastChanged > 4000) {
           return latest;
         }
-        if (latest && !stopButton() && Date.now() - lastChanged > 15000) {
-          return latest;
-        }
         setStatus(
           expectedChunks.length
             ? `Waiting for complete translated blocks: ${expectedChunks.join(", ")}...`
             : "Waiting for ChatGPT response..."
         );
         await sleep(1000);
+      }
+      if (expectedChunks.length) {
+        throw new Error(`Timed out waiting for complete translated chunk blocks: ${expectedChunks.join(", ")}`);
       }
       throw new Error("Timed out waiting for a new ChatGPT assistant response.");
     }
