@@ -244,17 +244,21 @@
           lastChanged = Date.now();
         }
         if (latest && expectedChunks.length && hasCompleteTranslatedBlocks(latest, expectedChunks)) {
-          await sleep(1500);
-          return captureNewAssistantText(beforeTexts) || latest;
+          setStatus("Complete translated blocks detected; waiting for ChatGPT to settle...");
+          if (Date.now() - lastChanged > 4000) {
+            return captureNewAssistantText(beforeTexts) || latest;
+          }
         }
         if (latest && !expectedChunks.length && !stopButton() && Date.now() - lastChanged > 4000) {
           return latest;
         }
-        setStatus(
-          expectedChunks.length
-            ? `Waiting for complete translated blocks: ${expectedChunks.join(", ")}...`
-            : "Waiting for ChatGPT response..."
-        );
+        if (!latest || !expectedChunks.length || !hasCompleteTranslatedBlocks(latest, expectedChunks)) {
+          setStatus(
+            expectedChunks.length
+              ? `Waiting for complete translated blocks: ${expectedChunks.join(", ")}...`
+              : "Waiting for ChatGPT response..."
+          );
+        }
         await sleep(1000);
       }
       if (expectedChunks.length) {
