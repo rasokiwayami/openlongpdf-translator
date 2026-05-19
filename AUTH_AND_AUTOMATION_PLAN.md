@@ -26,14 +26,15 @@ Therefore:
 
 Use official APIs.
 
-Target commands:
+Current command:
 
 ```bash
-openlongpdf auth openai
-openlongpdf auth deepl
-openlongpdf translate book_openlongpdf --provider openai --model gpt-5.4
-openlongpdf translate book_openlongpdf --provider deepl
+export OPENAI_API_KEY=...
+openlongpdf translate book_openlongpdf --model your-paid-model
+openlongpdf translate book_openlongpdf --model your-paid-model --yes
 ```
+
+Provider-specific auth helpers can be added later, but the first supported path is environment variables plus an OpenAI-compatible chat completions endpoint.
 
 ## Auth Flow
 
@@ -95,7 +96,7 @@ Not allowed:
 
 The current MVP should remain useful without API keys.
 
-Provider auth and `translate` are a second phase after:
+The paid API `translate` path now sits beside the manual workflow:
 
 - `prepare`
 - `status`
@@ -107,4 +108,4 @@ Provider auth and `translate` are a second phase after:
 - `import`
 - `assemble`
 
-are stable and documented.
+Manual paste remains available for users without API keys.

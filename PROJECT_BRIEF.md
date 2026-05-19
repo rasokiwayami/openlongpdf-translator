@@ -9,8 +9,9 @@ It is not a translation model. It is a local-first workflow tool that:
 - extracts text from long PDFs page by page,
 - preserves page numbers,
 - splits the document into manageable translation chunks,
-- generates prompts for ChatGPT, Claude, Gemini, DeepL, local LLMs, or API-based translation,
-- helps the user paste translated chunks back,
+- generates prompts for ChatGPT, Claude, Gemini, DeepL, or API-based translation,
+- translates chunks automatically for users with paid API access,
+- helps the user paste translated chunks back when they do not want API automation,
 - assembles the result into page-aware Markdown and HTML reading notes.
 
 ## Why This Should Exist
@@ -59,12 +60,11 @@ Primary:
 - humanities students reading non-English sources,
 - graduate students and independent researchers,
 - technical readers who want long PDFs converted into Markdown/HTML notes,
-- people who already pay for ChatGPT/Claude/Gemini but do not want another document translation subscription.
+- people who already have paid API access to a capable LLM and do not want another document translation subscription.
 
 Secondary:
 
 - developers who want a reusable PDF-to-translation-chunk workflow,
-- local LLM users,
 - people who want to compare outputs from multiple translation engines.
 
 ## MVP Scope
@@ -81,6 +81,7 @@ Required commands:
 - `openlongpdf copy-pack <project_dir> <pack>`
 - `openlongpdf paste <project_dir>`
 - `openlongpdf import <project_dir> <response_file>`
+- `openlongpdf translate <project_dir> --model <model>`
 - `openlongpdf assemble <project_dir>`
 
 Required workflow:
@@ -91,13 +92,14 @@ Required workflow:
 4. Tool generates prompt files.
 5. Tool shows a full translation queue with every prompt file and save target.
 6. Tool can group remaining chunks into larger prompt packs.
-7. Tool copies prompt packs through a Unicode-safe clipboard route, especially on WSL/Windows.
-8. User pastes prompt packs into ChatGPT, Claude, Gemini, DeepL, or another AI.
-9. User saves the marked translated answer.
-10. Tool imports every translated chunk from that marked answer.
-11. Tool still supports one-chunk-at-a-time `next` and `paste` fallback.
-12. Tool tracks progress.
-13. Tool assembles Markdown and HTML reading notes.
+7. For paid API users, tool sends missing chunks to an OpenAI-compatible API and saves each translated result.
+8. For manual users, tool copies prompt packs through a Unicode-safe clipboard route, especially on WSL/Windows.
+9. User pastes prompt packs into ChatGPT, Claude, Gemini, DeepL, or another AI.
+10. User saves the marked translated answer.
+11. Tool imports every translated chunk from that marked answer.
+12. Tool still supports one-chunk-at-a-time `next` and `paste` fallback.
+13. Tool tracks progress.
+14. Tool assembles Markdown and HTML reading notes.
 
 ## MVP Non-Goals
 
@@ -139,14 +141,12 @@ API-based full automation can be added later through official APIs.
 
 ## Auth And Full-Automation Direction
 
-The project should eventually support full automatic translation of all chunks, but that should be implemented through official provider APIs, not through unattended ChatGPT website scraping.
+The project supports full automatic translation of all chunks through OpenAI-compatible provider APIs, not through unattended ChatGPT website scraping.
 
 Good full-automation path:
 
-- `openlongpdf auth openai`
-- `openlongpdf auth deepl`
-- `openlongpdf translate <project_dir> --provider openai --model gpt-5.4`
-- `openlongpdf translate <project_dir> --provider deepl`
+- `openlongpdf translate <project_dir> --model <model>`
+- `openlongpdf translate <project_dir> --model <model> --base-url <url> --api-key-env <env>`
 
 The auth flow should run during onboarding or first use, not silently:
 
@@ -157,7 +157,7 @@ The auth flow should run during onboarding or first use, not silently:
    - OS keyring if available.
 3. Never store ChatGPT account cookies, browser sessions, passwords, or access tokens.
 4. Explain that ChatGPT Plus/Pro subscription access is not the same thing as API access.
-5. For true unattended batch translation, require official API credentials.
+5. For true unattended batch translation, require official API credentials and explicit `--yes` confirmation.
 
 ChatGPT website assistance can still be useful, but it should remain visible and user-controlled:
 
@@ -186,9 +186,8 @@ A user can run:
 
 ```powershell
 openlongpdf prepare book.pdf --pages-per-chunk 10
-openlongpdf pack .\book_openlongpdf --chunks-per-pack 4
-openlongpdf copy-pack .\book_openlongpdf pack_001 --open chatgpt
-openlongpdf import .\book_openlongpdf .\book_openlongpdf\output\pack_responses\pack_001_response.md
+openlongpdf translate .\book_openlongpdf --model your-paid-model
+openlongpdf translate .\book_openlongpdf --model your-paid-model --yes
 openlongpdf status .\book_openlongpdf
 openlongpdf assemble .\book_openlongpdf
 ```

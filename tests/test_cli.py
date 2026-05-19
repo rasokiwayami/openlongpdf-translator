@@ -154,3 +154,49 @@ translated two
     assert "Imported 2 translated chunks" in output
     assert "translated_chunks/chunk_001_translated.md" in output
     assert get_status(project_dir).remaining_chunks == 0
+
+
+def test_translate_prints_plan_without_yes_and_does_not_call_api(tmp_path, monkeypatch, capsys):
+    project_dir = make_project(tmp_path)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("API should not be called without --yes")
+
+    monkeypatch.setattr("openlongpdf.cli.OpenAICompatibleClient", fail_if_called)
+
+    exit_code = main(["translate", str(project_dir), "--model", "paid-model"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "2 chunks will be translated" in output
+    assert "Re-run with --yes" in output
+
+
+def test_translate_with_yes_requires_api_key(tmp_path, monkeypatch, capsys):
+    project_dir = make_project(tmp_path)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    exit_code = main(["translate", str(project_dir), "--model", "paid-model", "--yes"])
+
+    assert exit_code == 2
+    assert "Missing API key" in capsys.readouterr().err
+
+
+def test_translate_with_yes_saves_api_results(tmp_path, monkeypatch, capsys):
+    project_dir = make_project(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    class FakeClient:
+        def translate(self, prompt, *, config):
+            return "translated through api"
+
+    monkeypatch.setattr("openlongpdf.cli.OpenAICompatibleClient", lambda: FakeClient())
+
+    exit_code = main(["translate", str(project_dir), "--model", "paid-model", "--yes"])
+
+    output = capsys.readouterr().out.replace("\\", "/")
+    assert exit_code == 0
+    assert "Saved 2 translated chunks" in output
+    assert "translated_chunks/chunk_001_translated.md" in output
+    assert get_status(project_dir).remaining_chunks == 0

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
 import sys
 from pathlib import Path
 
+from .api_translate import ApiTranslationConfig, OpenAICompatibleClient, plan_translation, translate_project
 from .clipboard import BrowserOpenError, ClipboardError, copy_to_clipboard, open_translation_service, read_clipboard
 from .pdf_extract import extract_pdf_pages
 from .project import (
@@ -86,6 +88,20 @@ def build_parser() -> argparse.ArgumentParser:
     import_cmd.add_argument("response_file")
     import_cmd.add_argument("--overwrite", action="store_true", help="allow replacing existing translated chunks")
     import_cmd.set_defaults(func=cmd_import)
+
+    translate = subparsers.add_parser("translate", help="translate missing chunks through a paid OpenAI-compatible API")
+    translate.add_argument("project_dir")
+    translate.add_argument("--model", required=True, help="model name to send to the provider")
+    translate.add_argument("--base-url", default="https://api.openai.com/v1", help="OpenAI-compatible API base URL")
+    translate.add_argument("--api-key-env", default="OPENAI_API_KEY", help="environment variable that contains the API key")
+    translate.add_argument("--yes", action="store_true", help="actually call the paid API after showing the plan")
+    translate.add_argument("--overwrite", action="store_true", help="retranslate chunks that already have translations")
+    translate.add_argument("--limit", type=int, help="translate at most this many chunks")
+    translate.add_argument("--timeout", type=float, default=120.0, help="HTTP request timeout in seconds")
+    translate.add_argument("--retries", type=int, default=2, help="retry count per chunk")
+    translate.add_argument("--temperature", type=float, default=0.0, help="sampling temperature")
+    translate.add_argument("--max-output-tokens", type=int, help="optional max_tokens value for each request")
+    translate.set_defaults(func=cmd_translate)
 
     assemble = subparsers.add_parser("assemble", help="assemble translated chunks into Markdown and HTML")
     assemble.add_argument("project_dir")
@@ -236,6 +252,51 @@ def cmd_import(args: argparse.Namespace) -> int:
     project = Project.load(args.project_dir)
     print(f"Imported {len(saved_paths)} translated chunks.")
     for path in saved_paths:
+        print(f"- {path.relative_to(project.project_dir)}")
+    status = get_status(project.project_dir)
+    if status.next_missing:
+        print(f"Progress: {format_status(status)}")
+    else:
+        print(f"All chunks translated. Run: openlongpdf assemble {_shell_quote(project.project_dir)}")
+    return 0
+
+
+def cmd_translate(args: argparse.Namespace) -> int:
+    plan = plan_translation(args.project_dir, overwrite=args.overwrite, limit=args.limit)
+    print(f"{plan.chunks_to_translate} chunks will be translated out of {plan.total_chunks}.")
+    print(f"Prompt characters: {plan.prompt_chars}")
+    print(f"Model: {args.model}")
+    print(f"Base URL: {args.base_url}")
+    if not args.yes:
+        print("This may incur API charges. Re-run with --yes to start.")
+        return 0
+
+    api_key = os.environ.get(args.api_key_env)
+    if not api_key:
+        print(f"Missing API key. Set {args.api_key_env} before running translate.", file=sys.stderr)
+        return 2
+
+    config = ApiTranslationConfig(
+        model=args.model,
+        api_key=api_key,
+        base_url=args.base_url,
+        temperature=args.temperature,
+        timeout=args.timeout,
+        max_output_tokens=args.max_output_tokens,
+        retries=args.retries,
+    )
+
+    result = translate_project(
+        args.project_dir,
+        client=OpenAICompatibleClient(),
+        config=config,
+        yes=True,
+        overwrite=args.overwrite,
+        limit=args.limit,
+    )
+    print(f"Saved {len(result.saved_paths)} translated chunks.")
+    project = Project.load(args.project_dir)
+    for path in result.saved_paths:
         print(f"- {path.relative_to(project.project_dir)}")
     status = get_status(project.project_dir)
     if status.next_missing:

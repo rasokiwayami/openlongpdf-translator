@@ -4,7 +4,7 @@ Turn long foreign-language PDFs into page-aware reading notes.
 
 No cloud lock-in. No extra translation subscription. Use the AI you already pay for.
 
-OpenLongPDF Translator is a local-first Python CLI workflow. It extracts text from text-layer PDFs, keeps page numbers, splits long documents into translation prompts, helps you paste those prompts into ChatGPT, Claude, Gemini, DeepL, a local LLM, or another tool, and assembles translated chunks into Markdown and HTML reading notes.
+OpenLongPDF Translator is a local-first Python CLI workflow. It extracts text from text-layer PDFs, keeps page numbers, splits long documents into translation prompts, can translate those chunks through a paid OpenAI-compatible API, and assembles translated chunks into Markdown and HTML reading notes. It also keeps a manual paste workflow for ChatGPT, Claude, Gemini, DeepL, or another tool.
 
 ## Install
 
@@ -19,6 +19,24 @@ uv run openlongpdf --help
 ```
 
 ## MVP Workflow
+
+### Paid API Automation
+
+```bash
+export OPENAI_API_KEY=...
+
+openlongpdf prepare book.pdf --pages-per-chunk 10 --target-language Japanese
+openlongpdf translate book_openlongpdf --model your-paid-model
+# Review the planned chunk count and prompt size, then run:
+openlongpdf translate book_openlongpdf --model your-paid-model --yes
+openlongpdf assemble book_openlongpdf
+```
+
+`translate` sends each missing chunk to an OpenAI-compatible `/chat/completions` API, saves every response immediately into `translated_chunks/`, and skips chunks that are already translated. It refuses to call the paid API until `--yes` is provided. By default it reads the API key from `OPENAI_API_KEY`; use `--api-key-env` and `--base-url` for another compatible provider.
+
+ChatGPT Plus/Pro website subscriptions are not API credentials. Automatic translation requires a provider API key and may incur API charges.
+
+### Manual Paste Assist
 
 ```bash
 openlongpdf prepare book.pdf --pages-per-chunk 10
@@ -121,7 +139,7 @@ openlongpdf import book_openlongpdf book_openlongpdf/output/pack_responses/pack_
 
 OpenLongPDF is not a translation model and is not a cloud translation service. It does not implement OCR, a GUI, a web app, a native app, user accounts, billing, cloud storage, PDF regeneration, or ChatGPT scraping. It does not store credentials, cookies, access tokens, or session data.
 
-API-based auto-translation can be added later through official APIs, but the MVP is designed to work without API keys.
+API-based auto-translation uses provider API keys from environment variables. It does not authenticate against ChatGPT Web accounts or reuse browser subscriptions.
 
 ## Copyright And Samples
 
@@ -132,6 +150,6 @@ Only process documents you have the right to read or use. Do not publish transla
 - OCR for scanned PDFs
 - Token-aware chunking
 - Glossary support
-- Official API auto-translation
+- Provider-specific cost estimates
 - Better HTML reader
 - Local LLM integration

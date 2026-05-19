@@ -12,7 +12,7 @@ Core positioning:
 - Turn long foreign-language PDFs into page-aware reading notes.
 - No cloud lock-in.
 - No extra translation subscription required.
-- Use ChatGPT, Claude, Gemini, DeepL, local LLMs, or your own API keys.
+- Use a paid OpenAI-compatible API key for automation, or ChatGPT/Claude/Gemini/DeepL manually.
 - The tool is not a translation model.
 - The tool must not publish or distribute copyrighted translated content.
 - Demos/tests must use public-domain or synthetic sample text.
@@ -26,20 +26,19 @@ Implement a paste-assist workflow:
 3. It can open ChatGPT/Claude/Gemini in the browser.
 4. It can show the exact file where the translated answer should be saved.
 5. It can accept clipboard content and save it to the correct translated chunk file.
-6. It can update status after each saved translation.
+6. It can automatically send missing chunks to a paid OpenAI-compatible API when the user provides an API key and `--yes`.
+7. It can update status after each saved translation.
 
 Do not build unsupported scraping of ChatGPT output in MVP.
 Do not bypass rate limits, login walls, CAPTCHAs, usage limits, or UI protections.
 Do not store ChatGPT credentials, cookies, access tokens, or session data.
 If browser assistance is added, it must be explicit opt-in, visible to the user, and user-controlled.
 
-Full automatic translation of all chunks is an important future feature, but implement it through official provider APIs, not through unattended ChatGPT Web automation.
+Full automatic translation of all chunks must use official/OpenAI-compatible provider APIs, not unattended ChatGPT Web automation.
 
-Future auth/automation design to preserve in code structure:
-- `openlongpdf auth openai`
-- `openlongpdf auth deepl`
-- `openlongpdf translate <project_dir> --provider openai --model gpt-5.4`
-- `openlongpdf translate <project_dir> --provider deepl`
+Automation design to preserve in code structure:
+- `openlongpdf translate <project_dir> --model <model>`
+- `openlongpdf translate <project_dir> --model <model> --base-url <url> --api-key-env <env>`
 
 Auth rules:
 - ChatGPT Plus/Pro subscription is not API authentication.
@@ -125,22 +124,24 @@ CLI commands to implement:
      - escaped user content
      - no frontend framework
 
-10. Optional:
+10. `openlongpdf translate <project_dir> --model <model>`
+   - Load missing chunks.
+   - Read the API key from `OPENAI_API_KEY` by default.
+   - Support `--base-url` for OpenAI-compatible providers.
+   - Print the planned chunk count and prompt character count.
+   - Refuse to call the paid API unless `--yes` is passed.
+   - Save each API result immediately to `translated_chunks/`.
+   - Resume safely by skipping already translated chunks.
+   - Refuse to overwrite existing translated chunks unless `--overwrite` is passed.
+
+11. Optional:
    `openlongpdf estimate <pdf>`
    - Show page count, extracted characters, estimated chunks, rough token estimate, and rough API cost placeholders.
 
-11. Future, not MVP unless everything above is complete:
+12. Future:
    `openlongpdf auth <provider>`
    - Configure official API credentials for OpenAI, DeepL, or other providers.
    - Do not authenticate against ChatGPT Web accounts.
-
-12. Future, not MVP unless everything above is complete:
-   `openlongpdf translate <project_dir> --provider <provider>`
-   - Automatically translate remaining chunks through official APIs.
-   - Save each result into `translated_chunks/`.
-   - Resume safely after interruption.
-   - Refuse to run without explicit provider credentials.
-   - Print estimated cost before starting when possible.
 
 Implementation constraints:
 - Python CLI.
@@ -187,7 +188,7 @@ README requirements:
   5. `openlongpdf paste workdir`
   6. repeat
   7. `openlongpdf assemble workdir`
-- Explain that API auto-translation is future/optional.
+- Explain that API auto-translation is optional and may incur provider charges.
 - Explain that users should only process documents they have the right to read/use.
 - Do not include copyrighted translated book samples.
 - Include public-domain/synthetic demo.
@@ -195,8 +196,8 @@ README requirements:
   - OCR
   - token-aware chunking
   - glossary
-- API auto-translation
-- provider auth and official API batch translation
+  - provider-specific cost estimates
+  - provider auth helpers
   - better HTML reader
   - local LLM integration
 
@@ -210,7 +211,13 @@ Tests:
 - HTML escaping/rendering
 
 Success criteria:
-A user can process a long PDF without API keys:
+A user can process a long PDF with a paid API key:
+- prepare the PDF
+- run `openlongpdf translate ... --model ...`
+- confirm with `--yes`
+- assemble a readable Markdown/HTML note
+
+A user can still process a long PDF without API keys:
 - prepare the PDF
 - copy/open the next ChatGPT prompt
 - paste the translated result back with one command
