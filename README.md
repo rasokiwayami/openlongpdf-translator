@@ -4,7 +4,7 @@ Turn long foreign-language PDFs into page-aware reading notes.
 
 No cloud lock-in. No extra translation subscription. Use the AI you already pay for.
 
-OpenLongPDF Translator is a local-first workflow for reading long foreign-language PDFs with the AI tool you already use. It extracts text from text-layer PDFs, keeps page numbers, splits long documents into translation prompts, gives you a local browser GUI for ChatGPT/Claude/Gemini-style paste workflows, and assembles translated chunks into Markdown and HTML reading notes. A paid OpenAI-compatible API mode is available for users who want fully automatic chunk translation.
+OpenLongPDF Translator is a local-first workflow for reading long foreign-language PDFs with the AI tool you already use. It extracts text from text-layer PDFs, keeps page numbers, splits long documents into translation prompts, gives you a local browser GUI for ChatGPT/Claude/Gemini-style workflows, and assembles translated chunks into Markdown and HTML reading notes. A paid OpenAI-compatible API mode is available for users who want fully automatic chunk translation.
 
 ## Install
 
@@ -31,12 +31,13 @@ The GUI opens a local browser page where you can:
 
 - generate multi-chunk packs,
 - copy a pack to the clipboard,
-- open ChatGPT,
+- install a ChatGPT-side Browser Assist helper,
+- send one queued pack or auto-send remaining queued packs from the ChatGPT page,
 - paste the translated response back,
 - import translated chunks,
 - assemble the final reading notes.
 
-The GUI does not scrape ChatGPT, control your browser session, or store ChatGPT credentials.
+The GUI does not store ChatGPT credentials, cookies, access tokens, or responses. Browser Assist is optional: it runs only after you click its bookmarklet on ChatGPT, then uses visible buttons to fill and send queued packs. It may stop if ChatGPT changes its page structure.
 
 ### CLI Paste Assist
 
@@ -91,6 +92,25 @@ openlongpdf queue book_openlongpdf --all
 `copy-pack ... --open chatgpt` copies a full prompt pack and opens ChatGPT. `next --copy --open chatgpt` does the same for one-chunk fallback. On WSL/Linux, clipboard support prefers PowerShell `Set-Clipboard` before `clip.exe` so non-ASCII text such as Cyrillic, Japanese, and accented Latin characters survives the Windows clipboard boundary. Browser opening tries `cmd.exe /c start`, `wslview`, `xdg-open`, and other safe local openers. If those tools are unavailable, OpenLongPDF prints paths and errors without storing credentials or scraping websites.
 
 `queue` lists every remaining prompt file and the matching translated chunk target. `--write` creates `output/translation_queue.md` as a checklist so a 30+ chunk workload is visible before you start copying prompts.
+
+## Browser Assist
+
+For long PDFs where the safe pack size is small, use the GUI's Browser Assist to avoid copy/paste round trips:
+
+```bash
+openlongpdf gui book_openlongpdf
+```
+
+In the local GUI:
+
+1. Generate packs.
+2. Open `Browser Assist`.
+3. Drag the `OpenLongPDF Assist` bookmarklet to your bookmarks bar.
+4. Open ChatGPT.
+5. Click the bookmarklet on the ChatGPT page.
+6. Use `Send next OpenLongPDF pack` or `Auto-send remaining packs`.
+
+The helper fetches queued pack text from the local GUI, fills the ChatGPT composer, clicks send, and marks that pack as sent in `output/assist_state.json`. It does not read ChatGPT's answer or import translations automatically; after ChatGPT replies, paste each translated response back into the GUI import box or save it under `output/pack_responses/`.
 
 If a WSL path contains spaces or non-ASCII characters, prefer command variables or tab completion instead of retyping the path. For example:
 
@@ -175,9 +195,9 @@ ChatGPT Plus/Pro website subscriptions are not API credentials. Automatic API tr
 
 ## What This Is Not
 
-OpenLongPDF is not a translation model and is not a cloud translation service. It does not implement OCR, a hosted web app, a native app, user accounts, billing, cloud storage, PDF regeneration, or ChatGPT scraping. It does not store credentials, cookies, access tokens, or session data.
+OpenLongPDF is not a translation model and is not a cloud translation service. It does not implement OCR, a hosted web app, a native app, user accounts, billing, cloud storage, or PDF regeneration. It does not store credentials, cookies, access tokens, or session data.
 
-API-based auto-translation uses provider API keys from environment variables. It does not authenticate against ChatGPT Web accounts or reuse browser subscriptions.
+API-based auto-translation uses provider API keys from environment variables. Browser Assist is a visible user-started helper for an already logged-in ChatGPT tab; it does not authenticate against ChatGPT Web accounts or reuse browser subscriptions as API credentials.
 
 ## Copyright And Samples
 
