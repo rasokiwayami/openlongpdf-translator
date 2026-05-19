@@ -4,6 +4,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 
 from openlongpdf.chunking import PageText
 from openlongpdf.gui import (
@@ -81,10 +82,30 @@ def test_browser_assist_page_provides_chatgpt_side_helper(tmp_path):
     html = render_browser_assist(project_dir, base_url="http://127.0.0.1:8765", token="test-token")
 
     assert "OpenLongPDF Assist" in html
-    assert "Drag this button to your bookmarks bar. Open ChatGPT, then click it once." in html
+    assert "Chrome extension installed? Click this button once." in html
+    assert "Start Translation In ChatGPT" in html
+    assert "openlongpdf_server=http%3A%2F%2F127.0.0.1%3A8765" in html
     assert "javascript:" in html
     assert "test-token" in html
+    assert "Load unpacked" in html
+    assert "OpenLongPDF Bookmarklet" in html
     assert "Advanced" in html
+
+
+def test_chrome_extension_files_define_chatgpt_assist():
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads((root / "extension" / "manifest.json").read_text(encoding="utf-8"))
+    content = (root / "extension" / "content.js").read_text(encoding="utf-8")
+    core = (root / "extension" / "assist-core.js").read_text(encoding="utf-8")
+
+    assert manifest["manifest_version"] == 3
+    assert "https://chatgpt.com/*" in manifest["content_scripts"][0]["matches"]
+    assert "http://127.0.0.1/*" in manifest["host_permissions"]
+    assert "openlongpdf_server" in content
+    assert "openlongpdf_token" in content
+    assert "openLongPDFStartAssist" in core
+    assert "Auto translate all" in core
+    assert "/assist/import-response" in core
 
 
 def test_assist_pack_queue_tracks_sent_packs(tmp_path):

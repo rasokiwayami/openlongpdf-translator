@@ -28,12 +28,9 @@ openlongpdf run book.pdf --target-language Japanese
 
 In the GUI:
 
-1. Open `Browser Assist`.
-2. Drag the `OpenLongPDF Assist` bookmarklet to your bookmarks bar.
-3. Open ChatGPT in the browser session where you are already logged in.
-4. Click the bookmarklet on the ChatGPT page.
-5. Choose `Auto-send, capture, import, and assemble remaining packs`.
-6. Confirm once at the start of the session.
+1. Install the Chrome extension once from `extension/` if you have not already.
+2. Click `Start ChatGPT Translation`.
+3. Confirm once in the OpenLongPDF panel on ChatGPT.
 
 After that one-time consent, the helper sends each remaining pack, waits for ChatGPT to finish, captures the new assistant response from the visible page, posts it to the local GUI, imports the marked translated chunks, and runs `assemble` when all packs are imported.
 
@@ -52,14 +49,14 @@ The GUI opens a local browser page where you can:
 
 - generate multi-chunk packs,
 - copy a pack to the clipboard,
-- install a ChatGPT-side Browser Assist helper,
+- install a ChatGPT-side Chrome extension helper,
 - send one queued pack, or auto-send/capture/import/assemble remaining queued packs from the ChatGPT page,
 - see pack progress: pending, sent, imported, and failed,
 - retry a failed pack or reset assist state,
 - paste/import responses manually if automatic capture fails,
 - assemble the final reading notes manually.
 
-The GUI does not store ChatGPT credentials, cookies, access tokens, or session data. Browser Assist is optional and visible: it runs only after you click its bookmarklet on ChatGPT and confirm the auto session. It may stop if ChatGPT changes its page structure.
+The GUI does not store ChatGPT credentials, cookies, access tokens, or session data. Browser Assist is optional and visible: it runs only after you open ChatGPT through the local GUI or fallback bookmarklet and confirm the auto session. It may stop if ChatGPT changes its page structure.
 
 ### CLI Paste Assist
 
@@ -126,11 +123,16 @@ openlongpdf gui book_openlongpdf
 In the local GUI:
 
 1. Generate packs.
-2. Open `Browser Assist`.
-3. Drag the `OpenLongPDF Assist` bookmarklet to your bookmarks bar.
-4. Open ChatGPT.
-5. Click the bookmarklet on the ChatGPT page.
-6. Use `Send next OpenLongPDF pack` for one pack, or `Auto-send, capture, import, and assemble remaining packs` for the full remaining queue.
+2. Install the Chrome extension once:
+   - open `chrome://extensions`
+   - enable Developer mode
+   - choose `Load unpacked`
+   - select this repository's `extension/` directory
+3. Open `Browser Assist`.
+4. Click `Start Translation In ChatGPT`.
+5. Use `Send next pack` for one pack, or `Auto translate all` for the full remaining queue.
+
+If installing the extension is not possible, `Browser Assist` also keeps an advanced bookmarklet fallback. The fallback has the same automation logic, but it is harder to explain to non-technical users.
 
 The helper fetches queued pack text from the local GUI, records the current assistant-message state, fills the ChatGPT composer, clicks send, waits for the response to finish, extracts the newly visible assistant response, and posts it to `POST /assist/import-response` on the local GUI. The GUI saves the raw response under `output/pack_responses/`, imports marked translated chunk blocks into `translated_chunks/`, updates `output/assist_state.json`, and runs `assemble` automatically after all packs are imported.
 

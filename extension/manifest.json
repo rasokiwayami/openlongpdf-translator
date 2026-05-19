@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "OpenLongPDF Assist",
+  "version": "0.1.0",
+  "description": "Connects ChatGPT to a local OpenLongPDF project for visible user-approved translation automation.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["assist-core.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
