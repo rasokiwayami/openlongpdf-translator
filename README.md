@@ -43,7 +43,8 @@ The GUI does not scrape ChatGPT, control your browser session, or store ChatGPT 
 ```bash
 openlongpdf prepare book.pdf --pages-per-chunk 10
 openlongpdf queue book_openlongpdf --write
-openlongpdf pack book_openlongpdf --chunks-per-pack 4
+openlongpdf pack-plan book_openlongpdf
+openlongpdf pack book_openlongpdf --auto
 openlongpdf copy-pack book_openlongpdf pack_001 --open chatgpt
 # Paste/send the copied pack text in ChatGPT, then save the answer.
 openlongpdf import book_openlongpdf book_openlongpdf/output/pack_responses/pack_001_response.md
@@ -69,14 +70,15 @@ Pack-based paste assistance is the first-class long-document workflow:
 
 1. `openlongpdf prepare book.pdf`
 2. `openlongpdf queue book_openlongpdf --write`
-3. `openlongpdf pack book_openlongpdf --chunks-per-pack 4`
-4. Review `output/translation_packs.md` to see every pack file and response save path.
-5. `openlongpdf copy-pack book_openlongpdf pack_NNN --open chatgpt`
-6. Paste/send the copied pack text in ChatGPT, Claude, Gemini, DeepL, or another translator.
-7. Save each translated answer to the suggested `output/pack_responses/pack_NNN_response.md` path.
-8. `openlongpdf import book_openlongpdf book_openlongpdf/output/pack_responses/pack_NNN_response.md`
-9. Repeat by pack until `openlongpdf status book_openlongpdf` shows no remaining chunks.
-10. `openlongpdf assemble book_openlongpdf`
+3. `openlongpdf pack-plan book_openlongpdf`
+4. `openlongpdf pack book_openlongpdf --auto`
+5. Review `output/translation_packs.md` to see every pack file and response save path.
+6. `openlongpdf copy-pack book_openlongpdf pack_NNN --open chatgpt`
+7. Paste/send the copied pack text in ChatGPT, Claude, Gemini, DeepL, or another translator.
+8. Save each translated answer to the suggested `output/pack_responses/pack_NNN_response.md` path.
+9. `openlongpdf import book_openlongpdf book_openlongpdf/output/pack_responses/pack_NNN_response.md`
+10. Repeat by pack until `openlongpdf status book_openlongpdf` shows no remaining chunks.
+11. `openlongpdf assemble book_openlongpdf`
 
 For long documents, inspect the whole queue first:
 
@@ -89,6 +91,15 @@ openlongpdf queue book_openlongpdf --all
 `copy-pack ... --open chatgpt` copies a full prompt pack and opens ChatGPT. `next --copy --open chatgpt` does the same for one-chunk fallback. On WSL/Linux, clipboard support prefers PowerShell `Set-Clipboard` before `clip.exe` so non-ASCII text such as Cyrillic, Japanese, and accented Latin characters survives the Windows clipboard boundary. Browser opening tries `cmd.exe /c start`, `wslview`, `xdg-open`, and other safe local openers. If those tools are unavailable, OpenLongPDF prints paths and errors without storing credentials or scraping websites.
 
 `queue` lists every remaining prompt file and the matching translated chunk target. `--write` creates `output/translation_queue.md` as a checklist so a 30+ chunk workload is visible before you start copying prompts.
+
+If a WSL path contains spaces or non-ASCII characters, prefer command variables or tab completion instead of retyping the path. For example:
+
+```bash
+WIN_HOME="$(wslpath "$(powershell.exe -NoProfile -Command '[Environment]::GetFolderPath("UserProfile")' | tr -d '\r')")"
+PROJECT="$(find "$WIN_HOME/Downloads" -maxdepth 1 -type d -name '*openlongpdf' | head -n 1)"
+openlongpdf pack-plan "$PROJECT"
+openlongpdf pack "$PROJECT" --auto
+```
 
 For one-chunk-at-a-time fallback:
 
@@ -103,7 +114,14 @@ openlongpdf paste book_openlongpdf
 For long PDFs, generate fewer larger prompt files:
 
 ```bash
-openlongpdf pack book_openlongpdf --chunks-per-pack 4
+openlongpdf pack-plan book_openlongpdf
+openlongpdf pack book_openlongpdf --auto
+```
+
+`pack-plan` measures the remaining chunks and recommends a conservative pack size for ChatGPT-style web/app output. `pack --auto` uses that recommendation. The defaults keep each pack near or below 40,000 prompt characters and 40,000 source characters, because output truncation is usually the limiting factor. You can still override the result:
+
+```bash
+openlongpdf pack book_openlongpdf --chunks-per-pack 3
 ```
 
 This writes the pack index and prompt files, and the index suggests response save paths:

@@ -111,6 +111,35 @@ def test_pack_writes_multi_chunk_prompt_files(tmp_path, capsys):
     assert "--- BEGIN SOURCE CHUNK chunk_001 ---" in pack_path.read_text(encoding="utf-8")
 
 
+def test_pack_plan_prints_safe_pack_recommendation(tmp_path, capsys):
+    project_dir = make_project(tmp_path)
+
+    exit_code = main(["pack-plan", str(project_dir)])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "Recommended chunks per pack" in output
+    assert "Suggested command: openlongpdf pack" in output
+
+
+def test_pack_auto_uses_safe_pack_recommendation(tmp_path, capsys):
+    project_dir = tmp_path / "large_openlongpdf"
+    create_project_from_pages(
+        pdf_path=tmp_path / "large.pdf",
+        project_dir=project_dir,
+        pages=[PageText(number=index, text="x" * 19_000) for index in range(1, 6)],
+        pages_per_chunk=1,
+    )
+
+    exit_code = main(["pack", str(project_dir), "--auto"])
+
+    output = capsys.readouterr().out.replace("\\", "/")
+    assert exit_code == 0
+    assert "Auto-selected 2 chunks per pack" in output
+    assert "Wrote 3 packs" in output
+    assert (project_dir / "output" / "packs" / "pack_003.md").exists()
+
+
 def test_copy_pack_copies_pack_text_and_opens_selected_service(tmp_path, monkeypatch, capsys):
     project_dir = make_project(tmp_path)
     main(["pack", str(project_dir), "--chunks-per-pack", "2"])

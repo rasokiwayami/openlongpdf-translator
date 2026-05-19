@@ -16,6 +16,7 @@ from openlongpdf.project import (
     write_translation_packs,
 )
 from openlongpdf.render import assemble_project
+from openlongpdf.sizing import format_pack_recommendation, recommend_chunks_per_pack
 
 
 def test_split_pages_preserves_chunk_order_and_page_ranges():
@@ -236,6 +237,45 @@ def test_translation_packs_group_remaining_chunks_and_write_index(tmp_path):
     assert "--- BEGIN SOURCE CHUNK chunk_002 ---" in first_pack
     assert "## Page 2" in first_pack
     assert "--- BEGIN SOURCE CHUNK chunk_004 ---" not in first_pack
+
+
+def test_recommend_chunks_per_pack_uses_largest_remaining_chunk(tmp_path):
+    project_dir = tmp_path / "book_openlongpdf"
+    create_project_from_pages(
+        pdf_path=tmp_path / "book.pdf",
+        project_dir=project_dir,
+        pages=[
+            PageText(number=1, text="a" * 100),
+            PageText(number=2, text="b" * 200),
+            PageText(number=3, text="c" * 300),
+        ],
+        pages_per_chunk=1,
+    )
+    save_translation(project_dir, "translated one", overwrite=False)
+    project = Project.load(project_dir)
+    remaining_prompts = [
+        project.abs_path(chunk.prompt_path).read_text(encoding="utf-8")
+        for chunk in project.chunks
+        if chunk.name != "chunk_001"
+    ]
+    remaining_sources = [
+        project.abs_path(chunk.source_path).read_text(encoding="utf-8")
+        for chunk in project.chunks
+        if chunk.name != "chunk_001"
+    ]
+    max_prompt_chars = max(len(text) for text in remaining_prompts) * 2
+    max_source_chars = max(len(text) for text in remaining_sources) * 2
+
+    recommendation = recommend_chunks_per_pack(
+        project_dir,
+        max_prompt_chars=max_prompt_chars,
+        max_source_chars=max_source_chars,
+    )
+
+    assert recommendation.total_chunks == 2
+    assert recommendation.chunks_per_pack == 2
+    assert recommendation.estimated_packs == 1
+    assert "Recommended chunks per pack: 2" in format_pack_recommendation(recommendation)
 
 
 def test_translation_pack_index_quotes_import_paths_with_spaces(tmp_path):

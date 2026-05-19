@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .project import Project, format_status, get_status, import_pack_response, write_translation_packs
 from .render import assemble_project
+from .sizing import recommend_chunks_per_pack
 
 
 PACK_RE = re.compile(r"^pack_\d{3}(?:\.md)?$")
@@ -37,6 +38,7 @@ def run_gui(project_dir: str | Path, *, host: str = "127.0.0.1", port: int = 876
 def render_dashboard(project_dir: str | Path, *, message: str = "") -> str:
     project = Project.load(project_dir)
     status = get_status(project.project_dir)
+    recommendation = recommend_chunks_per_pack(project.project_dir)
     packs = sorted((project.project_dir / "output" / "packs").glob("pack_*.md"))
     pack_items = "\n".join(_render_pack_item(project, path) for path in packs)
     if not pack_items:
@@ -81,10 +83,10 @@ def render_dashboard(project_dir: str | Path, *, message: str = "") -> str:
   <section class="panel">
     <h2>Generate Packs</h2>
     <form method="post" action="/pack" class="actions">
-      <label>Chunks per pack <input name="chunks_per_pack" type="number" min="1" value="4"></label>
+      <label>Chunks per pack <input name="chunks_per_pack" type="number" min="1" value="{recommendation.chunks_per_pack}"></label>
       <button type="submit">Generate Packs</button>
     </form>
-    <p class="muted">Use larger packs for fewer ChatGPT round trips. If ChatGPT truncates output, regenerate with fewer chunks per pack.</p>
+    <p class="muted"><strong>Recommended:</strong> {recommendation.chunks_per_pack} chunks per pack, about {recommendation.estimated_packs} packs. This uses conservative ChatGPT-app sized budgets; if output is truncated, regenerate with fewer chunks per pack.</p>
   </section>
 
   <section class="panel">

@@ -24,6 +24,7 @@ def test_dashboard_shows_pack_workflow_and_status(tmp_path):
     assert "OpenLongPDF" in html
     assert "2 chunks total" in html
     assert "pack_001" in html
+    assert "Recommended:" in html
     assert "Copy Pack" in html
     assert "Paste translated response" in html
     assert "Assemble Reading Notes" in html

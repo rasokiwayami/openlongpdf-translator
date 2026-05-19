@@ -23,6 +23,12 @@ from .project import (
     write_translation_queue,
 )
 from .render import assemble_project
+from .sizing import (
+    DEFAULT_MAX_PROMPT_CHARS,
+    DEFAULT_MAX_SOURCE_CHARS,
+    format_pack_recommendation,
+    recommend_chunks_per_pack,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -69,8 +75,18 @@ def build_parser() -> argparse.ArgumentParser:
     pack = subparsers.add_parser("pack", help="write multi-chunk prompt packs for manual translation")
     pack.add_argument("project_dir")
     pack.add_argument("--chunks-per-pack", type=int, default=4, help="number of chunks per prompt pack")
+    pack.add_argument("--auto", action="store_true", help="use the safe recommended chunks per pack")
+    pack.add_argument("--max-prompt-chars", type=int, default=DEFAULT_MAX_PROMPT_CHARS, help="safe prompt char budget for --auto")
+    pack.add_argument("--max-source-chars", type=int, default=DEFAULT_MAX_SOURCE_CHARS, help="safe source char budget for --auto")
     pack.add_argument("--all", action="store_true", help="include chunks that already have translations")
     pack.set_defaults(func=cmd_pack)
+
+    pack_plan = subparsers.add_parser("pack-plan", help="recommend a safe chunks-per-pack value")
+    pack_plan.add_argument("project_dir")
+    pack_plan.add_argument("--max-prompt-chars", type=int, default=DEFAULT_MAX_PROMPT_CHARS, help="safe prompt char budget")
+    pack_plan.add_argument("--max-source-chars", type=int, default=DEFAULT_MAX_SOURCE_CHARS, help="safe source char budget")
+    pack_plan.add_argument("--all", action="store_true", help="include chunks that already have translations")
+    pack_plan.set_defaults(func=cmd_pack_plan)
 
     copy_pack = subparsers.add_parser("copy-pack", help="copy a prompt pack to the clipboard")
     copy_pack.add_argument("project_dir")
@@ -189,9 +205,20 @@ def cmd_queue(args: argparse.Namespace) -> int:
 
 
 def cmd_pack(args: argparse.Namespace) -> int:
+    chunks_per_pack = args.chunks_per_pack
+    if args.auto:
+        recommendation = recommend_chunks_per_pack(
+            args.project_dir,
+            include_translated=args.all,
+            max_prompt_chars=args.max_prompt_chars,
+            max_source_chars=args.max_source_chars,
+        )
+        chunks_per_pack = recommendation.chunks_per_pack
+        print(f"Auto-selected {chunks_per_pack} chunks per pack.")
+
     result = write_translation_packs(
         args.project_dir,
-        chunks_per_pack=args.chunks_per_pack,
+        chunks_per_pack=chunks_per_pack,
         include_translated=args.all,
     )
     suffix = "" if len(result.pack_paths) == 1 else "s"
@@ -199,6 +226,22 @@ def cmd_pack(args: argparse.Namespace) -> int:
     print(f"Wrote {result.index_path}")
     for path in result.pack_paths:
         print(f"- {path}")
+    return 0
+
+
+def cmd_pack_plan(args: argparse.Namespace) -> int:
+    recommendation = recommend_chunks_per_pack(
+        args.project_dir,
+        include_translated=args.all,
+        max_prompt_chars=args.max_prompt_chars,
+        max_source_chars=args.max_source_chars,
+    )
+    print(format_pack_recommendation(recommendation))
+    print(
+        "Suggested command: "
+        f"openlongpdf pack {_shell_quote(args.project_dir)} "
+        f"--chunks-per-pack {recommendation.chunks_per_pack}"
+    )
     return 0
 
 
