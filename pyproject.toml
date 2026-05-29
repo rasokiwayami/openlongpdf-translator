@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 license = "MIT"
 authors = [{ name = "OpenLongPDF contributors" }]
 dependencies = ["pypdf>=4,<6"]
-keywords = ["pdf", "translation", "cli", "markdown", "wsl"]
+keywords = ["pdf", "translation", "cli", "markdown", "wsl", "macos"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",

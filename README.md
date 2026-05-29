@@ -56,7 +56,7 @@ The GUI opens a local browser page where you can:
 - paste/import responses manually if automatic capture fails,
 - assemble the final reading notes manually.
 
-The GUI does not store ChatGPT credentials, cookies, access tokens, or session data. Browser Assist is optional and visible: it runs only after you open ChatGPT through the local GUI or fallback bookmarklet and confirm the auto session. It may stop if ChatGPT changes its page structure.
+The GUI does not store ChatGPT credentials, cookies, access tokens, or session data. Browser Assist is optional and visible: it runs only after you open ChatGPT through the local GUI or fallback bookmarklet and confirm the auto session. Browser Assist still does not store credentials, cookies, tokens, or session data. It may stop if ChatGPT changes its page structure.
 
 ### CLI Paste Assist
 
@@ -108,7 +108,7 @@ openlongpdf queue book_openlongpdf --write
 openlongpdf queue book_openlongpdf --all
 ```
 
-`copy-pack ... --open chatgpt` copies a full prompt pack and opens ChatGPT. `next --copy --open chatgpt` does the same for one-chunk fallback. On WSL/Linux, clipboard support prefers PowerShell `Set-Clipboard` before `clip.exe` so non-ASCII text such as Cyrillic, Japanese, and accented Latin characters survives the Windows clipboard boundary. Browser opening tries `cmd.exe /c start`, `wslview`, `xdg-open`, and other safe local openers. If those tools are unavailable, OpenLongPDF prints paths and errors without storing credentials or scraping websites.
+`copy-pack ... --open chatgpt` copies a full prompt pack and opens ChatGPT. `next --copy --open chatgpt` does the same for one-chunk fallback. On WSL/Linux, clipboard support prefers PowerShell `Set-Clipboard` before `clip.exe` so non-ASCII text such as Cyrillic, Japanese, and accented Latin characters survives the Windows clipboard boundary. On macOS, OpenLongPDF uses `pbcopy`/`pbpaste` for clipboard access and `open` for browser launching when available. The WSL Unicode-safe guidance remains unchanged. Browser opening tries `cmd.exe /c start`, `wslview`, `xdg-open`, and other safe local openers. If those tools are unavailable, OpenLongPDF prints paths and errors without storing credentials or scraping websites.
 
 `queue` lists every remaining prompt file and the matching translated chunk target. `--write` creates `output/translation_queue.md` as a checklist so a 30+ chunk workload is visible before you start copying prompts.
 
