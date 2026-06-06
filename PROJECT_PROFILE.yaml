@@ -1,0 +1,66 @@
+project:
+  repo: rasokiwayami/openlongpdf-translator
+  type: supporting_tool
+  domain: document_translation
+  orchestrator: project_orchestrator
+  primary_goal: Local-first long PDF extraction and page-aware translation-note workflow
+  default_branch: main
+  visibility: private_or_public_per_current_remote
+
+runtime:
+  local_only: true
+  deployment: none
+  languages:
+    - python
+  package_managers:
+    - uv
+  operating_environment:
+    - Mac local operation under /Users/sora/dev/openlongpdf-translator
+    - Legacy Windows/WSL operation remains a normal Python/uv context
+
+authority:
+  global_default_band: A2
+  canonical_authority_registry: shieikan/jinsei/registries/AUTHORITY_MATRIX.md
+  forbidden:
+    - credential or token exposure
+    - raw private PDFs or extracted document bodies in tracked files
+    - external API calls without explicit task approval
+    - public claims without review
+    - push without required Review Controller approval
+
+global_coding_department:
+  default_route:
+    - Executive Orchestrator
+    - OpenLongPDF Project Orchestrator
+    - Implementation Planning Worker
+    - Implementation Worker
+    - Implementation Review Controller
+  queue_request_command: cd /Users/sora/dev/jinsei && python3 scripts/dispatch_codex_session.py --queue-request --project "OpenLongPDF Translator" --repo /Users/sora/dev/openlongpdf-translator
+  run_queue_command: cd /Users/sora/dev/jinsei && python3 scripts/dispatch_codex_session.py --from-queue --limit 3
+  push_review_check_command: cd /Users/sora/dev/jinsei && python3 scripts/dispatch_codex_session.py --check-push-review --project "OpenLongPDF Translator"
+  required_for:
+    - non_trivial_implementation
+    - multi_file_changes
+    - pdf_parsing_or_clipboard_changes
+    - external_api_changes
+    - public_or_push_readiness
+
+verification:
+  default:
+    - uv run --extra dev python -m pytest
+  formatting:
+    - git diff --check
+
+state:
+  ignored_runtime_dirs:
+    - .venv/
+    - .pytest_cache/
+    - output/
+    - dist/
+    - build/
+  canonical_progress:
+    - AGENTS.md
+    - PROJECT_PROFILE.yaml
+    - pyproject.toml
+    - src/
+    - tests/
