@@ -19,6 +19,17 @@ Use Planning Worker, Implementation Worker, and Review Controller separation for
 multi-file changes, PDF parsing behavior, clipboard/GUI behavior, external API
 translation, public/push readiness, or workflow contract changes.
 
+## Development Autonomy
+
+Development GitHub operations are L5 under Jinsei's
+`GITHUB_DEVOPS_AUTONOMY_POLICY.md` after this repo's verification and required
+Review Controller gates pass. This includes branch work, local commits, pushes
+to an existing approved remote, PR creation/update, and issue operations.
+
+Public deployment, repository visibility changes, billing or paid services,
+secret mutation, production data mutation, public claims, and publication remain
+gated.
+
 ## Engineering Rules
 
 - Prefer existing Python modules and tests.
