@@ -37,6 +37,7 @@ autonomy:
     - dev.local_commit
     - dev.github_push
     - dev.github_pr_create
+    - dev.github_review_request
     - dev.github_issue_comment
     - dev.github_issue_label
     - dev.github_issue_close
