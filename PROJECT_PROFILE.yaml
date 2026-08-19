@@ -2,7 +2,6 @@ project:
   repo: rasokiwayami/openlongpdf-translator
   type: supporting_tool
   domain: document_translation
-  orchestrator: project_orchestrator
   primary_goal: Local-first long PDF extraction and page-aware translation-note workflow
   default_branch: main
   visibility: private_or_public_per_current_remote
@@ -26,7 +25,7 @@ authority:
     - raw private PDFs or extracted document bodies in tracked files
     - external API calls without explicit task approval
     - public claims without review
-    - push without required Review Controller approval
+    - push without required independent Sol max review evidence bound to the current HEAD
 
 autonomy:
   default_level: L5_for_development
@@ -49,17 +48,17 @@ autonomy:
     - dev.billing_or_paid_service_change
     - publication.public_claim
 
-global_coding_department:
-  default_route:
-    - Executive Orchestrator
-    - OpenLongPDF Project Orchestrator
-    - Implementation Planning Worker
-    - Implementation Worker
-    - Implementation Review Controller
-  queue_request_command: cd /Users/sora/dev/jinsei && python3 scripts/dispatch_codex_session.py --queue-request --project "OpenLongPDF Translator" --repo /Users/sora/dev/openlongpdf-translator
-  run_queue_command: cd /Users/sora/dev/jinsei && python3 scripts/dispatch_codex_session.py --from-queue --limit 3
-  push_review_check_command: cd /Users/sora/dev/jinsei && python3 scripts/dispatch_codex_session.py --check-push-review --project "OpenLongPDF Translator"
-  required_for:
+development_route:
+  instruction_source: /Users/sora/dev/jinsei/CODEX_GLOBAL_AGENTS.md
+  boundary_command: /Users/sora/dev/jinsei/bin/jinsei
+  model_launch_owner: Codex_parent
+  route: "Plan -> Work -> independent Sol max Review"
+  evidence_binding:
+    - current_TaskIntent
+    - current_HEAD
+    - fresh_verification
+    - independent_Sol_max_review
+  applies_to:
     - non_trivial_implementation
     - multi_file_changes
     - pdf_parsing_or_clipboard_changes
