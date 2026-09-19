@@ -7,24 +7,26 @@ operating truth. README prose is secondary when it lags implementation.
 ## Development Route
 
 For non-trivial implementation, use the parent-owned route:
-Plan -> Work -> independent Sol max Review. The central instructions are
-`/Users/sora/dev/jinsei/CODEX_GLOBAL_AGENTS.md`, and the deterministic task,
-authority, evidence, and Git boundary is `/Users/sora/dev/jinsei/bin/jinsei`.
-The Codex parent owns model launch; the current TaskIntent, exact worktree
-scope, and fresh verification/review evidence must bind to the current HEAD.
-Do not infer launch commands from this repository.
+Plan -> Work -> Review. The current central contract and linked policies own
+the route, model and effort selection, review, task evidence, and Git side
+effects:
 
-## Development Autonomy
+- `/Users/sora/dev/jinsei/CODEX_GLOBAL_AGENTS.md`
+- `/Users/sora/dev/jinsei/docs/policies/DEVELOPMENT_MODEL_ROUTE_POLICY.md`
+- `/Users/sora/dev/jinsei/docs/policies/DEVELOPMENT_PROTOCOL.md`
+- `/Users/sora/dev/jinsei/docs/policies/MANAGED_REPOSITORY_INHERITANCE.md`
 
-Development GitHub operations are L5 under Jinsei's
-`GITHUB_DEVOPS_AUTONOMY_POLICY.md` after this repo's verification and fresh
-independent Sol max review evidence bound to the current HEAD pass. This
-includes branch work, local commits, pushes to an existing approved remote, PR
-creation/update, and issue operations.
+The central harness boundary is `/Users/sora/dev/jinsei/bin/jinsei`; do not
+infer launch commands from this repository. The `project.authority` block in
+`PROJECT_PROFILE.yaml` is a target-local narrowing filter. It does not grant
+authority or replace central task, halt, identity, or review checks.
 
-Public deployment, repository visibility changes, billing or paid services,
-secret mutation, production data mutation, public claims, and publication remain
-gated.
+## Repository Scope
+
+This repository is a specialized Jinsei-managed PDF tool. It owns the PDF
+source code and private local runtime artifacts. For cross-repository work,
+read only directly affected contracts and consumers. No current external
+runtime caller is verified for this component; do not invent one.
 
 ## Engineering Rules
 

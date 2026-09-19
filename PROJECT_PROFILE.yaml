@@ -1,3 +1,5 @@
+schema_version: 6
+
 project:
   repo: rasokiwayami/openlongpdf-translator
   type: supporting_tool
@@ -5,6 +7,22 @@ project:
   primary_goal: Local-first long PDF extraction and page-aware translation-note workflow
   default_branch: main
   visibility: private_or_public_per_current_remote
+  authority:
+    # These are target-local filters; central authority and task evidence still decide execution.
+    allowed_actions:
+      - dev.local_inspect
+      - dev.local_edit
+      - dev.local_test
+      - dev.local_commit
+      - dev.github_push
+      - dev.github_pr_or_issue
+    forbidden_actions:
+      - dev.repo_create_visibility_deploy_or_publish
+      - dev.secret_or_security_mutation
+      - dev.production_data_mutation
+      - auth.secret_read_or_print
+      - finance.spending_or_paid_service_change
+      - dev.destructive_action
 
 runtime:
   local_only: true
@@ -16,54 +34,6 @@ runtime:
   operating_environment:
     - Mac local operation under /Users/sora/dev/openlongpdf-translator
     - Legacy Windows/WSL operation remains a normal Python/uv context
-
-authority:
-  global_default_band: A2
-  canonical_authority_registry: shieikan/jinsei/registries/AUTHORITY_MATRIX.md
-  forbidden:
-    - credential or token exposure
-    - raw private PDFs or extracted document bodies in tracked files
-    - external API calls without explicit task approval
-    - public claims without review
-    - push without required independent Sol max review evidence bound to the current HEAD
-
-autonomy:
-  default_level: L5_for_development
-  policy_registry: shieikan/jinsei/registries/AUTONOMY_POLICY_MATRIX.md
-  enabled:
-    - dev.local_edit
-    - dev.local_test
-    - dev.local_commit
-    - dev.github_push
-    - dev.github_pr_create
-    - dev.github_review_request
-    - dev.github_issue_comment
-    - dev.github_issue_label
-    - dev.github_issue_close
-  gated:
-    - dev.deploy_public
-    - dev.repo_visibility_change
-    - dev.secret_mutation
-    - dev.production_data_mutation
-    - dev.billing_or_paid_service_change
-    - publication.public_claim
-
-development_route:
-  instruction_source: /Users/sora/dev/jinsei/CODEX_GLOBAL_AGENTS.md
-  boundary_command: /Users/sora/dev/jinsei/bin/jinsei
-  model_launch_owner: Codex_parent
-  route: "Plan -> Work -> independent Sol max Review"
-  evidence_binding:
-    - current_TaskIntent
-    - current_HEAD
-    - fresh_verification
-    - independent_Sol_max_review
-  applies_to:
-    - non_trivial_implementation
-    - multi_file_changes
-    - pdf_parsing_or_clipboard_changes
-    - external_api_changes
-    - public_or_push_readiness
 
 verification:
   default:
