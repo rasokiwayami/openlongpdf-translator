@@ -32,7 +32,10 @@ runtime caller is verified for this component; do not invent one.
 
 - Prefer existing Python modules and tests.
 - Keep PDF processing local-first and deterministic where possible.
-- Do not add external services to the default path without explicit approval.
+- External API calls, including optional paths, require exact approval in the
+  current task.
+- Permission to read a local file does not authorize sending private PDFs or
+  extracted document bodies to any external service.
 - Do not commit generated PDFs, extracted private document text, translation
   outputs, or raw local workspaces.
 
