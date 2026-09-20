@@ -1,4 +1,4 @@
-# Agent Guidelines
+# openlongpdf-translator/AGENTS.md
 
 This repository is a local-first PDF extraction and translation-note workflow.
 Treat Python source, tests, `pyproject.toml`, and `PROJECT_PROFILE.yaml` as the
